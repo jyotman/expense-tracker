@@ -1,0 +1,66 @@
+CREATE TABLE expense (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    amountMinor INTEGER NOT NULL,
+    categoryId INTEGER,
+    note TEXT,
+    merchant TEXT,
+    occurredAt INTEGER NOT NULL,
+    createdAt INTEGER NOT NULL,
+    source TEXT NOT NULL DEFAULT 'MANUAL',
+    recurringRuleId INTEGER
+);
+
+CREATE INDEX expense_occurredAt ON expense(occurredAt);
+CREATE INDEX expense_categoryId ON expense(categoryId);
+
+insert:
+INSERT INTO expense (amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertWithId:
+INSERT INTO expense (id, amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE expense
+SET amountMinor = ?, categoryId = ?, note = ?, merchant = ?, occurredAt = ?, source = ?
+WHERE id = ?;
+
+setCategory:
+UPDATE expense SET categoryId = ? WHERE id = ?;
+
+deleteById:
+DELETE FROM expense WHERE id = ?;
+
+selectById:
+SELECT * FROM expense WHERE id = ?;
+
+selectInRange:
+SELECT * FROM expense
+WHERE occurredAt >= :start AND occurredAt < :end
+ORDER BY occurredAt DESC, id DESC;
+
+selectUncategorizedInRange:
+SELECT * FROM expense
+WHERE occurredAt >= :start AND occurredAt < :end AND categoryId IS NULL
+ORDER BY occurredAt DESC, id DESC;
+
+totalInRange:
+SELECT coalesce(sum(amountMinor), 0) AS total FROM expense
+WHERE occurredAt >= :start AND occurredAt < :end;
+
+categoryTotalsInRange:
+SELECT categoryId, coalesce(sum(amountMinor), 0) AS total, count(*) AS cnt
+FROM expense
+WHERE occurredAt >= :start AND occurredAt < :end
+GROUP BY categoryId
+ORDER BY total DESC;
+
+selectAllForExport:
+SELECT * FROM expense ORDER BY occurredAt ASC, id ASC;
+
+lastInsertedId:
+SELECT last_insert_rowid();
+
+deleteAll:
+DELETE FROM expense;

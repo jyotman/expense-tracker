@@ -1,0 +1,48 @@
+CREATE TABLE category (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    iconKey TEXT NOT NULL,
+    colorHex TEXT NOT NULL,
+    sortOrder INTEGER NOT NULL DEFAULT 0,
+    isArchived INTEGER NOT NULL DEFAULT 0
+);
+
+selectAll:
+SELECT * FROM category
+ORDER BY isArchived ASC, sortOrder ASC, name ASC;
+
+selectActive:
+SELECT * FROM category
+WHERE isArchived = 0
+ORDER BY sortOrder ASC, name ASC;
+
+selectById:
+SELECT * FROM category WHERE id = ?;
+
+countAll:
+SELECT count(*) FROM category;
+
+insert:
+INSERT INTO category (name, iconKey, colorHex, sortOrder, isArchived)
+VALUES (?, ?, ?, ?, 0);
+
+insertWithId:
+INSERT INTO category (id, name, iconKey, colorHex, sortOrder, isArchived)
+VALUES (?, ?, ?, ?, ?, ?);
+
+deleteAll:
+DELETE FROM category;
+
+update:
+UPDATE category
+SET name = ?, iconKey = ?, colorHex = ?, sortOrder = ?
+WHERE id = ?;
+
+setArchived:
+UPDATE category SET isArchived = ? WHERE id = ?;
+
+deleteById:
+DELETE FROM category WHERE id = ?;
+
+lastInsertedId:
+SELECT last_insert_rowid();

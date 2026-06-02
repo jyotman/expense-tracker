@@ -1,0 +1,50 @@
+CREATE TABLE recurring_rule (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    amountMinor INTEGER NOT NULL,
+    categoryId INTEGER,
+    note TEXT,
+    merchant TEXT,
+    intervalUnit TEXT NOT NULL,
+    intervalCount INTEGER NOT NULL DEFAULT 1,
+    startAt INTEGER NOT NULL,
+    endAt INTEGER,
+    lastGeneratedAt INTEGER,
+    isActive INTEGER NOT NULL DEFAULT 1
+);
+
+insert:
+INSERT INTO recurring_rule (amountMinor, categoryId, note, merchant, intervalUnit, intervalCount, startAt, endAt, lastGeneratedAt, isActive)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1);
+
+insertWithId:
+INSERT INTO recurring_rule (id, amountMinor, categoryId, note, merchant, intervalUnit, intervalCount, startAt, endAt, lastGeneratedAt, isActive)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteAll:
+DELETE FROM recurring_rule;
+
+update:
+UPDATE recurring_rule
+SET amountMinor = ?, categoryId = ?, note = ?, merchant = ?, intervalUnit = ?, intervalCount = ?, startAt = ?, endAt = ?
+WHERE id = ?;
+
+setLastGenerated:
+UPDATE recurring_rule SET lastGeneratedAt = ? WHERE id = ?;
+
+setActive:
+UPDATE recurring_rule SET isActive = ? WHERE id = ?;
+
+deleteById:
+DELETE FROM recurring_rule WHERE id = ?;
+
+selectById:
+SELECT * FROM recurring_rule WHERE id = ?;
+
+selectActive:
+SELECT * FROM recurring_rule WHERE isActive = 1 ORDER BY startAt DESC;
+
+selectAll:
+SELECT * FROM recurring_rule ORDER BY startAt DESC;
+
+lastInsertedId:
+SELECT last_insert_rowid();

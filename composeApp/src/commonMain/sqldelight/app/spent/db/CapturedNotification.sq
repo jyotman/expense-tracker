@@ -1,0 +1,53 @@
+CREATE TABLE captured_notification (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    notifKey TEXT,
+    packageName TEXT NOT NULL,
+    appLabel TEXT NOT NULL,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL,
+    amountMinor INTEGER,
+    merchant TEXT,
+    postedAt INTEGER NOT NULL,
+    isRead INTEGER NOT NULL DEFAULT 0,
+    expenseId INTEGER
+);
+
+CREATE INDEX captured_postedAt ON captured_notification(postedAt);
+
+insert:
+INSERT INTO captured_notification (notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt, isRead, expenseId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL);
+
+selectAll:
+SELECT * FROM captured_notification
+ORDER BY postedAt DESC, id DESC;
+
+selectById:
+SELECT * FROM captured_notification WHERE id = ?;
+
+-- Dedupe guard: same notification slot + same amount already recorded.
+findDuplicate:
+SELECT * FROM captured_notification
+WHERE notifKey = :notifKey AND amountMinor IS :amountMinor
+ORDER BY id DESC LIMIT 1;
+
+unreadCount:
+SELECT count(*) FROM captured_notification WHERE isRead = 0;
+
+markRead:
+UPDATE captured_notification SET isRead = 1 WHERE id = ?;
+
+markAllRead:
+UPDATE captured_notification SET isRead = 1;
+
+setExpense:
+UPDATE captured_notification SET expenseId = ?, isRead = 1 WHERE id = ?;
+
+clearExpenseLink:
+UPDATE captured_notification SET expenseId = NULL WHERE expenseId = ?;
+
+lastInsertedId:
+SELECT last_insert_rowid();
+
+deleteAll:
+DELETE FROM captured_notification;
