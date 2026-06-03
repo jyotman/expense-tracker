@@ -22,12 +22,12 @@ Key libraries (see `gradle/libs.versions.toml` for versions):
 composeApp/src/                    # Shared KMP library (namespace app.spent.shared)
   commonMain/kotlin/app/spent/   # 95% of code lives here
     ui/            # screens/ (one file per screen) + components/, theme/, CategoryVisuals
-    viewmodel/     # one ViewModel per screen + PeriodController (shared month selection)
+    viewmodel/     # one ViewModel per screen + PeriodScopedViewModel base + PeriodController (shared month selection)
     repository/    # ExpenseRepository, CategoryRepository, RecurringRepository (SQLDelight Flows)
     storage/       # SettingsStorage (multiplatform-settings wrapper)
     data/          # domain models, Money (minor units), TimePeriod, DefaultCategories
     db/            # Database holder (driver injected per platform)
-    capture/       # ExpenseExtractor (expect), TransactionDetector, CategoryMatcher, RulesExpenseExtractor, GenAiResponse (LLM JSON parsing)
+    capture/       # ExpenseExtractor (expect), TransactionDetector, CategoryMatcher, CaptureRules (currency/keyword/package data), RulesExpenseExtractor, GenAiResponse (LLM JSON parsing)
     backup/        # BackupService (JSON export/restore over the DB)
     platform/      # PlatformCapabilities, Backup (expect)
     navigation/    # Routes, DeepLinks bus

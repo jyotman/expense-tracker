@@ -56,7 +56,7 @@ The model is **detect → notify → prefill → confirm**: the background never
 | Stage | Responsibility |
 | :--- | :--- |
 | `SpendNotificationListener` | A `NotificationListenerService` (granted via system "Notification access"). Reads posted notifications, ignores its own; forwards the notification key + post time. |
-| `NotificationCaptureProcessor` | Gates on (a) capture enabled and (b) the posting package being a known finance app (`TransactionDetector.defaultPackages` + user additions). Runs **regex only** — never guesses a category, never creates an expense. |
+| `NotificationCaptureProcessor` | Gates on (a) capture enabled and (b) the posting package being a known finance app (`CaptureRules.defaultPackages` + user additions). Runs **regex only** — never guesses a category, never creates an expense. |
 | `recordIfNew` | Inserts a `captured_notification` **inbox** row (amount + merchant from regex), deduped on notification key + amount. |
 | `CaptureNotifications` | Posts one **isolated** push per detected transaction (notification id = the inbox row id; tapping cancels only itself, leaves the others). |
 
