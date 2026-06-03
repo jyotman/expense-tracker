@@ -1,4 +1,4 @@
-# Spent
+# Expense Tracker
 
 A minimal, local-first **spending** tracker (spends only — no income), Android-first. Its differentiator: on Android, payment notifications from bank/wallet/card apps are auto-converted into categorized expenses on-device. See [README.md](README.md) for product features, the auto-capture architecture deep-dive, the backup rationale, and platform gotchas.
 
@@ -9,7 +9,7 @@ Kotlin Multiplatform (Android + iOS) with Compose Multiplatform for UI. One shar
 Key libraries (see `gradle/libs.versions.toml` for versions):
 - **UI:** Compose Multiplatform, Material3 (dynamic color on Android 12+), `material-icons-extended`, `navigation-compose`, `vico` (charts)
 - **State:** AndroidX Lifecycle ViewModel + StateFlow
-- **Local DB:** `SQLDelight` — `SpentDatabase`, schema in `composeApp/src/commonMain/sqldelight/app/spent/db/*.sq`. The one deviation from nourge (which is key-value only)
+- **Local DB:** `SQLDelight` — `ExpenseTrackerDatabase`, schema in `composeApp/src/commonMain/sqldelight/app/expensetracker/db/*.sq`. The one deviation from nourge (which is key-value only)
 - **Prefs:** `multiplatform-settings` (`SettingsStorage`)
 - **On-device AI:** Gemini Nano via the **ML Kit GenAI Prompt API** (`com.google.mlkit:genai-prompt`, foreground-only), with a regex rules fallback. (Replaced the experimental `com.google.ai.edge.aicore` SDK, which was unreachable on stock devices.)
 - **Widget:** Jetpack Glance
@@ -19,8 +19,8 @@ Key libraries (see `gradle/libs.versions.toml` for versions):
 ## Project layout
 
 ```
-composeApp/src/                    # Shared KMP library (namespace app.spent.shared)
-  commonMain/kotlin/app/spent/   # 95% of code lives here
+composeApp/src/                    # Shared KMP library (namespace app.expensetracker.shared)
+  commonMain/kotlin/app/expensetracker/   # 95% of code lives here
     ui/            # screens/ (one file per screen) + components/, theme/, CategoryVisuals
     viewmodel/     # one ViewModel per screen + PeriodScopedViewModel base + PeriodController (shared month selection)
     repository/    # ExpenseRepository, CategoryRepository, RecurringRepository (SQLDelight Flows)
@@ -31,15 +31,15 @@ composeApp/src/                    # Shared KMP library (namespace app.spent.sha
     backup/        # BackupService (JSON export/restore over the DB)
     platform/      # PlatformCapabilities, Backup (expect)
     navigation/    # Routes, DeepLinks bus
-  commonMain/sqldelight/app/spent/db/   # .sq schema + .sqm migrations (Category, Expense, RecurringRule, CapturedNotification)
+  commonMain/sqldelight/app/expensetracker/db/   # .sq schema + .sqm migrations (Category, Expense, RecurringRule, CapturedNotification)
   commonMain/sqldelight/databases/      # committed schema snapshots (1.db, …) for migration verification
-  androidMain/kotlin/app/spent/   # actuals: ML Kit GenAI (Gemini Nano) extractor, SAF backup, capture processor, Glance widget
-  iosMain/kotlin/app/spent/       # MainViewController, iOS actuals (no-op stubs where the platform can't)
-  commonTest/kotlin/app/spent/    # shared tests (parsing/matching live here)
-androidApp/                        # Android entry point (applicationId app.spent)
-  src/main/kotlin/app/spent/MainActivity.kt, SpentApp.kt
-  src/main/kotlin/app/spent/capture/SpendNotificationListener.kt   # manifest-declared — see README gotcha
-  src/main/kotlin/app/spent/widget/SpentWidgetReceiver.kt          # manifest-declared — see README gotcha
+  androidMain/kotlin/app/expensetracker/   # actuals: ML Kit GenAI (Gemini Nano) extractor, SAF backup, capture processor, Glance widget
+  iosMain/kotlin/app/expensetracker/       # MainViewController, iOS actuals (no-op stubs where the platform can't)
+  commonTest/kotlin/app/expensetracker/    # shared tests (parsing/matching live here)
+androidApp/                        # Android entry point (applicationId app.expensetracker)
+  src/main/kotlin/app/expensetracker/MainActivity.kt, ExpenseTrackerApp.kt
+  src/main/kotlin/app/expensetracker/capture/SpendNotificationListener.kt   # manifest-declared — see README gotcha
+  src/main/kotlin/app/expensetracker/widget/ExpenseTrackerWidgetReceiver.kt          # manifest-declared — see README gotcha
 iosApp/                            # NOT generated yet — shared framework + MainViewController are ready
 gradle/libs.versions.toml          # single source of truth for versions
 ```
@@ -51,7 +51,7 @@ Run from repo root. Requires Java 21 (`.java-version`). **Do not run a full buil
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
-# Android — APK in :androidApp (debug applicationId is app.spent.debug)
+# Android — APK in :androidApp (debug applicationId is app.expensetracker.debug)
 ./gradlew :androidApp:assembleDebug
 
 # iOS — verify shared code compiles for the simulator target
@@ -59,7 +59,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 # Tests (parsing/matching unit tests live in commonTest, run as Android host tests)
 ./gradlew :composeApp:testAndroidHostTest
-./gradlew :composeApp:testAndroidHostTest --tests "app.spent.capture.*"
+./gradlew :composeApp:testAndroidHostTest --tests "app.expensetracker.capture.*"
 ```
 
 ## Conventions
@@ -76,9 +76,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 **Database schema & migrations.** The `.sq` files are the canonical *current* schema (`CREATE TABLE` lives there). Versioned schema snapshots are committed under `composeApp/src/commonMain/sqldelight/databases/` (`1.db`, `2.db`, …) and `verifyMigrations = true` makes the build fail if the `.sq` schema and the `.sqm` migration chain disagree — so an app update can never ship a missing/wrong migration and crash on existing installs. The check runs on `:composeApp:check` and is also wired into `testAndroidHostTest`. **Whenever you change a `.sq` schema** (add/alter/drop a table or column):
 1. Edit the `.sq` to the new desired schema.
-2. Add a migration `composeApp/src/commonMain/sqldelight/app/spent/db/<N>.sqm`, where `<N>` is the version you're migrating *from* (e.g. `1.sqm` = v1→v2) — `ALTER TABLE …` / `CREATE TABLE …` for the delta. The runtime version is `(highest .sqm number) + 1`; the driver auto-runs `Schema.migrate` on upgrade (no driver code change).
-3. Regenerate the snapshot: `./gradlew :composeApp:generateCommonMainSpentDatabaseSchema` (writes the new `<N+1>.db`); commit it.
-4. `./gradlew :composeApp:testAndroidHostTest` (or `:composeApp:verifyCommonMainSpentDatabaseMigration`) must pass. There are **no `.sqm` files yet** — the current 4-table schema is the `1.db` baseline.
+2. Add a migration `composeApp/src/commonMain/sqldelight/app/expensetracker/db/<N>.sqm`, where `<N>` is the version you're migrating *from* (e.g. `1.sqm` = v1→v2) — `ALTER TABLE …` / `CREATE TABLE …` for the delta. The runtime version is `(highest .sqm number) + 1`; the driver auto-runs `Schema.migrate` on upgrade (no driver code change).
+3. Regenerate the snapshot: `./gradlew :composeApp:generateCommonMainExpenseTrackerDatabaseSchema` (writes the new `<N+1>.db`); commit it.
+4. `./gradlew :composeApp:testAndroidHostTest` (or `:composeApp:verifyCommonMainExpenseTrackerDatabaseMigration`) must pass. There are **no `.sqm` files yet** — the current 4-table schema is the `1.db` baseline.
 
 **On-device only.** Notification parsing and AI run entirely on-device; nothing is sent to a server. Backup writes a user-controlled file — never auto-upload to a remote endpoint.
 

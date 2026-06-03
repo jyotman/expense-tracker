@@ -1,4 +1,4 @@
-rootProject.name = "spent"
+rootProject.name = "expense-tracker"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

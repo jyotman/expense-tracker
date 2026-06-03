@@ -11,7 +11,7 @@
         <!-- Reads bank/wallet/card notifications to auto-create expenses. The user must
              explicitly grant "Notification access" in system settings. -->
         <service
-            android:name="app.spent.capture.SpendNotificationListener"
+            android:name="app.expensetracker.capture.SpendNotificationListener"
             android:label="@string/notification_listener_label"
             android:exported="false"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
@@ -22,14 +22,14 @@
 
         <!-- Home-screen widget: current month spend + quick add. -->
         <receiver
-            android:name="app.spent.widget.SpentWidgetReceiver"
+            android:name="app.expensetracker.widget.ExpenseTrackerWidgetReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/spent_widget_info" />
+                android:resource="@xml/expense_tracker_widget_info" />
         </receiver>
 
     </application>

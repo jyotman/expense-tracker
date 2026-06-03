@@ -1,4 +1,4 @@
-# Spent
+# Expense Tracker
 
 A minimal, local-first **spending** tracker — spends only, no income. Everything lives on-device and the whole dataset backs up to a file the user controls; there is no app server. Built with Kotlin Multiplatform + Compose Multiplatform, Android-first.
 
@@ -22,7 +22,7 @@ The premise: tracking where your money goes is most useful when it's effortless.
 * `/composeApp` — shared Compose Multiplatform code.
     - `commonMain` — code shared across all targets (UI, ViewModels, repositories, capture/backup logic, SQLDelight schema)
     - `androidMain`, `iosMain` — platform `actual`s (Android: ML Kit GenAI / Gemini Nano extractor, SAF backup, capture, widget; iOS: stubs)
-* `/androidApp` — Android entry point. `MainActivity`, plus the manifest-declared `SpendNotificationListener` and `SpentWidgetReceiver` (see gotcha #1).
+* `/androidApp` — Android entry point. `MainActivity`, plus the manifest-declared `SpendNotificationListener` and `ExpenseTrackerWidgetReceiver` (see gotcha #1).
 * `/iosApp` — iOS app entry point. Not generated yet; the shared framework and `MainViewController` are ready.
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html). Day-to-day development conventions are in [CLAUDE.md](CLAUDE.md).
@@ -77,12 +77,12 @@ Availability is probed via ML Kit's `FeatureStatus`; the model downloads on dema
 Backup is deliberately **not** a programmatic Google Drive integration. That would need a Google Cloud OAuth client tied to the app's package + signing SHA-1, the Drive API enabled, and a consent screen — overkill for a no-server, share-with-everyone app, and a friction wall to distribute.
 
 Instead, two zero-config layers:
-- **Manual export/import via the Storage Access Framework.** The app writes `spent-backup-<date>.json` and hands it to the system file picker; the user saves it anywhere (their Drive, Dropbox, local) and imports it to restore. `BackupService` does the JSON (de)serialization over the SQLDelight database.
+- **Manual export/import via the Storage Access Framework.** The app writes `expense-tracker-backup-<date>.json` and hands it to the system file picker; the user saves it anywhere (their Drive, Dropbox, local) and imports it to restore. `BackupService` does the JSON (de)serialization over the SQLDelight database.
 - **OS auto-backup.** `android:allowBackup="true"` lets Android back the app's data up to the user's account automatically and restore it on reinstall / new device, with no action.
 
 ### 4. Platform gotchas
 
-* **Manifest-declared Android components must live in `:androidApp`.** The `com.android.kotlin.multiplatform.library` plugin tree-shakes shared-library classes that nothing in app code references. A `Service`/`Receiver` referenced only by string in the merged manifest gets dropped from the APK → `ClassNotFoundException` when the system binds it. So `SpendNotificationListener` and `SpentWidgetReceiver` live in `:androidApp` and pull in the `:composeApp` logic they call. (Manifest *declarations* can live in either module — they merge — but the *class* must be in the app module.)
+* **Manifest-declared Android components must live in `:androidApp`.** The `com.android.kotlin.multiplatform.library` plugin tree-shakes shared-library classes that nothing in app code references. A `Service`/`Receiver` referenced only by string in the merged manifest gets dropped from the APK → `ClassNotFoundException` when the system binds it. So `SpendNotificationListener` and `ExpenseTrackerWidgetReceiver` live in `:androidApp` and pull in the `:composeApp` logic they call. (Manifest *declarations* can live in either module — they merge — but the *class* must be in the app module.)
 * **On-device AI = ML Kit GenAI Prompt API (`com.google.mlkit:genai-prompt`), running Gemini Nano via the system AICore.** It is **foreground-only** (background inference is blocked), present only on AICore-capable hardware (Pixel 8+, Galaxy S24/S25, and similar), and downloads its model on demand. `minSdk 26` (≤ the app's `29`), so no manifest override is needed; every call is runtime-guarded with the regex fallback. (The earlier experimental `com.google.ai.edge.aicore` SDK was dropped — it returned `NOT_AVAILABLE` on stock devices.)
 * **`kotlin.time.Instant` / `Clock` still need `@OptIn(ExperimentalTime::class)`** under Kotlin 2.3.21. kotlinx-datetime 0.8 uses `.day` and `.month.number` (not `dayOfMonth`).
 * **POST_NOTIFICATIONS** is requested at first launch (Android 13+) so the capture confirmations can show.

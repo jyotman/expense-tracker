@@ -14,7 +14,7 @@ plugins {
 
 kotlin {
     androidLibrary {
-        namespace = "app.spent.shared"
+        namespace = "app.expensetracker.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -91,8 +91,8 @@ kotlin {
 
 sqldelight {
     databases {
-        create("SpentDatabase") {
-            packageName.set("app.spent.db")
+        create("ExpenseTrackerDatabase") {
+            packageName.set("app.expensetracker.db")
             // Where versioned schema snapshots (1.db, 2.db, …) are written/read. Each snapshot is the
             // schema at a given version; migrations are verified by replaying them onto these.
             schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
@@ -106,11 +106,11 @@ sqldelight {
 // SQLDelight only wires migration verification into `check` by default. Also run it as part of the
 // host unit tests (the day-to-day command in CLAUDE.md) so schema drift is caught locally, not just CI.
 tasks.matching { it.name == "testAndroidHostTest" }.configureEach {
-    dependsOn("verifyCommonMainSpentDatabaseMigration")
+    dependsOn("verifyCommonMainExpenseTrackerDatabaseMigration")
 }
 
 buildkonfig {
-    packageName = "app.spent"
+    packageName = "app.expensetracker"
 
     defaultConfigs {
         buildConfigField(BOOLEAN, "IS_RELEASE", "false")

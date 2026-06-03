@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "app.spent"
+    namespace = "app.expensetracker"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "app.spent"
+        applicationId = "app.expensetracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
