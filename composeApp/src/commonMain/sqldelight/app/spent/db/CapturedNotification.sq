@@ -13,6 +13,8 @@ CREATE TABLE captured_notification (
 );
 
 CREATE INDEX captured_postedAt ON captured_notification(postedAt);
+-- findDuplicate filters on notifKey on the capture hot path; keep it indexed.
+CREATE INDEX captured_notifKey ON captured_notification(notifKey);
 
 insert:
 INSERT INTO captured_notification (notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt, isRead, expenseId)
@@ -48,6 +50,11 @@ UPDATE captured_notification SET expenseId = NULL WHERE expenseId = ?;
 
 lastInsertedId:
 SELECT last_insert_rowid();
+
+-- Prune already-handled (read) notifications older than a cutoff so the table can't grow forever.
+deleteReadBefore:
+DELETE FROM captured_notification
+WHERE isRead = 1 AND postedAt < :cutoff;
 
 deleteAll:
 DELETE FROM captured_notification;

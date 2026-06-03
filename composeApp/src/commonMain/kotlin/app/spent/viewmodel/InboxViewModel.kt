@@ -17,5 +17,5 @@ class InboxViewModel : ViewModel() {
     val unreadCount: StateFlow<Long> =
         repo.observeUnreadCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
-    fun markAllRead() = repo.markAllRead()
+    fun markAllRead() { launchIo { repo.markAllRead() } }
 }

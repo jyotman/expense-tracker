@@ -61,7 +61,6 @@ data class MonthPeriod(val year: Int, val month: Int) {
             Month.OCTOBER -> "October"
             Month.NOVEMBER -> "November"
             Month.DECEMBER -> "December"
-            else -> ""
         }
     }
 }

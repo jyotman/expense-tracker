@@ -60,7 +60,8 @@ class MlKitGenAiExpenseExtractor : ExpenseExtractor {
     private fun buildPrompt(appLabel: String, title: String, text: String, categories: String): String = """
         Extract the single spending transaction from this payment notification.
         Reply with ONLY compact JSON, no prose or markdown:
-        {"amount": <number actually spent, digits only>, "merchant": <store/payee name or null>, "category": <one of: $categories — or null if unsure>}
+        {"amount": <amount spent as a plain decimal number, no currency symbol, e.g. 12.50>, "merchant": <store/payee name or null>, "category": <one of: $categories — or null if unsure>}
+        Keep the decimal point exactly as written — 12.50 means twelve dollars fifty, not 1250.
         Only the amount that actually left the account — ignore available balance, limits, and remaining funds.
         App: $appLabel
         Notification: "${title.take(160)} — ${text.take(400)}"

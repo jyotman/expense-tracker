@@ -29,6 +29,9 @@ WHERE id = ?;
 setCategory:
 UPDATE expense SET categoryId = ? WHERE id = ?;
 
+clearCategory:
+UPDATE expense SET categoryId = NULL WHERE categoryId = ?;
+
 deleteById:
 DELETE FROM expense WHERE id = ?;
 

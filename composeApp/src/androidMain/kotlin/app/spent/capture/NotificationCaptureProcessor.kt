@@ -26,7 +26,7 @@ object NotificationCaptureProcessor {
         val settings = ServiceLocator.settings
         if (!settings.notificationCaptureEnabled) return
 
-        val allow = TransactionDetector.defaultPackages + settings.capturePackages
+        val allow = CaptureRules.defaultPackages + settings.capturePackages
         if (packageName !in allow) return
 
         val combined = listOf(title, text).filter { it.isNotBlank() }.joinToString(" — ")

@@ -17,6 +17,20 @@ class TransactionDetectorTest {
     }
 
     @Test
+    fun keeps_european_decimal_comma() {
+        // The regex comment promises "EUR 12,50" — the cents must survive, not be dropped to €12.
+        assertEquals(1250L, TransactionDetector.extractAmountMinor("EUR 12,50 spent at Cafe"))
+    }
+
+    @Test
+    fun untagged_amount_is_not_the_longest_digit_run() {
+        // A reference / card number must never win over the real amount.
+        assertEquals(5000L, TransactionDetector.extractAmountMinor("Spent 50 at Store ref 7829341"))
+        // A decimal amount is preferred over a bare card number of the same/greater length.
+        assertEquals(999L, TransactionDetector.extractAmountMinor("Purchase 9.99 card ending 1234"))
+    }
+
+    @Test
     fun flags_spend_vs_income() {
         assertTrue(TransactionDetector.isLikelySpend("You spent \$45.20 at Tesco"))
         assertTrue(TransactionDetector.isLikelySpend("INR 500 debited for electricity bill"))
@@ -40,6 +54,15 @@ class TransactionDetectorTest {
         assertEquals(1L, CategoryMatcher.resolveByName("food", cats)) // partial, case-insensitive
         assertNull(CategoryMatcher.resolveByName("Healthcare", cats)) // no match
         assertNull(CategoryMatcher.resolveByName(null, cats))
+    }
+
+    @Test
+    fun category_match_respects_word_boundaries_and_specificity() {
+        val cats = listOf(cat(1, "Other"), cat(2, "Personal"), cat(3, "Personal care"))
+        // A short category name must not match as a substring inside an unrelated word.
+        assertNull(CategoryMatcher.resolveByName("Mother's day gift", listOf(cat(1, "Other"))))
+        // The most specific (longest) matching category wins, deterministically.
+        assertEquals(3L, CategoryMatcher.resolveByName("Personal care expenses", cats))
     }
 
     private fun cat(id: Long, name: String) =

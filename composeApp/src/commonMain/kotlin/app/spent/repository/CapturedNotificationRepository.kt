@@ -41,17 +41,25 @@ class CapturedNotificationRepository(
         merchant: String?,
         postedAt: Instant,
     ): Long? {
-        if (notifKey != null) {
-            val dup = queries.findDuplicate(notifKey, amountMinor).executeAsOneOrNull()
-            if (dup != null) return null
+        return db.transactionWithResult {
+            if (notifKey != null && queries.findDuplicate(notifKey, amountMinor).executeAsOneOrNull() != null) {
+                null
+            } else {
+                queries.insert(notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt.toEpochMilliseconds())
+                queries.lastInsertedId().executeAsOne()
+            }
         }
-        queries.insert(notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt.toEpochMilliseconds())
-        return queries.lastInsertedId().executeAsOne()
     }
 
     fun markRead(id: Long) = queries.markRead(id)
     fun markAllRead() = queries.markAllRead()
     fun linkExpense(id: Long, expenseId: Long) = queries.setExpense(expenseId, id)
+
+    /** Detach any captured notification pointing at [expenseId] (e.g. when that expense is deleted). */
+    fun clearExpenseLink(expenseId: Long) = queries.clearExpenseLink(expenseId)
+
+    /** Drop already-read notifications posted before [cutoff] so the table can't grow unbounded. */
+    fun pruneReadBefore(cutoff: Instant) = queries.deleteReadBefore(cutoff.toEpochMilliseconds())
 }
 
 private fun DbCaptured.toItem() = CapturedNotificationItem(

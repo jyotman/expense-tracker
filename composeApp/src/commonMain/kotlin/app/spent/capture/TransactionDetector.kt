@@ -1,6 +1,6 @@
 package app.spent.capture
 
-import kotlin.math.roundToLong
+import app.spent.data.Money
 
 /**
  * Heuristics for spotting payment notifications and pulling the amount out of them. Used both as
@@ -9,73 +9,59 @@ import kotlin.math.roundToLong
  */
 object TransactionDetector {
 
-    /** Words that signal a money-leaving-your-account event (not a credit/refund). */
-    private val spendKeywords = listOf(
-        "spent", "debited", "debit", "paid", "payment", "purchase", "charged", "charge",
-        "txn", "transaction", "sent", "withdrawn", "bought", "deducted",
-    )
+    // Amount matcher, built from CaptureRules so currency coverage is data-driven, not baked into a
+    // literal. Examples: $1,234.56 / S$45.20 / ₹1,200 / Rs. 500 / INR 500.00 / EUR 12,50 — a symbol
+    // or code on either side. The decimal part accepts '.' or ',' so European cents ("12,50") survive
+    // into Money.parseToMinor. Leading token may be a symbol or a code (e.g. "INR 500"); trailing is
+    // a code (e.g. "500 INR"). Longer tokens are tried first so "Rs." beats "Rs" and "S$" beats "$".
+    private fun alternation(tokens: List<String>): String =
+        tokens.sortedByDescending { it.length }.joinToString("|") { it.escapeRegex() }
 
-    /** Words that mean money came IN — we skip these (this is a spends-only tracker). */
-    private val incomeKeywords = listOf(
-        "credited", "received", "refund", "refunded", "cashback", "reversed", "salary", "deposit",
-    )
+    private val amountRegex: Regex = run {
+        val leading = alternation(CaptureRules.currencySymbols + CaptureRules.currencyCodes)
+        val trailing = alternation(CaptureRules.currencyCodes)
+        Regex(
+            """(?:(?<sym>$leading)\s*)?(?<num>\d{1,3}(?:[,\s]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?<sym2>$trailing))?""",
+            RegexOption.IGNORE_CASE,
+        )
+    }
 
-    // $1,234.56 / S$45.20 / ₹1,200 / Rs. 500 / INR 500.00 / EUR 12,50 — symbol or code, either side.
-    private val amountRegex = Regex(
-        """(?:(?<sym>[$₹€£]|rs\.?|inr|usd|sgd|eur|gbp|aed|s\$)\s*)?(?<num>\d{1,3}(?:[,\s]\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?:\s*(?<sym2>inr|usd|sgd|eur|gbp|aed))?""",
-        RegexOption.IGNORE_CASE,
-    )
-
-    /** Default set of bank / wallet / card app packages worth listening to. Extensible by the user. */
-    val defaultPackages: Set<String> = setOf(
-        "com.google.android.apps.nbu.paisa.user", // Google Pay (India)
-        "com.google.android.apps.walletnfcrel",   // Google Wallet
-        "com.revolut.revolut",
-        "com.phonepe.app",
-        "net.one97.paytm",
-        "com.paypal.android.p2pmobile",
-        "com.wise.android",
-        "com.monzo.android",
-        "com.starlingbank.android",
-        "com.chase.sig.android",
-        "com.americanexpress.android.acctsvcs.us",
-        "com.infonow.bofa",
-    )
+    /** Escape regex metacharacters so a literal token (e.g. "$", "Rs.") matches itself. */
+    private fun String.escapeRegex(): String = buildString {
+        for (c in this@escapeRegex) {
+            if (c in """\.[]{}()*+?^$|""") append('\\')
+            append(c)
+        }
+    }
 
     fun isIncome(text: String): Boolean {
         val lower = text.lowercase()
-        return incomeKeywords.any { lower.contains(it) }
+        return CaptureRules.incomeKeywords.any { lower.contains(it) }
     }
 
     /** True if the text looks like an outgoing payment with an amount. */
     fun isLikelySpend(text: String): Boolean {
         if (text.isBlank()) return false
-        val lower = text.lowercase()
-        if (incomeKeywords.any { lower.contains(it) }) return false
-        val hasKeyword = spendKeywords.any { lower.contains(it) }
+        if (isIncome(text)) return false
+        val hasKeyword = CaptureRules.spendKeywords.any { text.lowercase().contains(it) }
         return hasKeyword && extractAmountMinor(text) != null
     }
 
     /**
-     * Extract the most likely transaction amount as minor units. Picks the first currency-tagged
-     * amount, else the largest bare number with a decimal part (avoids matching "ending 1234").
+     * Extract the most likely transaction amount as minor units. Prefers an amount carrying a
+     * currency symbol/code; failing that prefers one with a decimal part (a real amount), then
+     * falls back to the first bare number — never the longest, which would latch onto card or
+     * reference digits like "ending 1234".
      */
     fun extractAmountMinor(text: String): Long? {
         val matches = amountRegex.findAll(text).toList()
         if (matches.isEmpty()) return null
 
-        // Prefer amounts that carry a currency symbol/code.
         val tagged = matches.firstOrNull { it.groups["sym"] != null || it.groups["sym2"] != null }
-        val chosen = tagged ?: matches.maxByOrNull { (it.groups["num"]?.value?.length ?: 0) }
-        val raw = chosen?.groups?.get("num")?.value ?: return null
-        return parseNumberToMinor(raw)
-    }
-
-    private fun parseNumberToMinor(raw: String): Long? {
-        val cleaned = raw.replace(" ", "").replace(",", "")
-        val value = cleaned.toDoubleOrNull() ?: return null
-        if (value <= 0) return null
-        return (value * 100).roundToLong()
+        val withDecimal = matches.firstOrNull { it.groups["num"]?.value?.contains('.') == true }
+        val chosen = tagged ?: withDecimal ?: matches.first()
+        val raw = chosen.groups["num"]?.value ?: return null
+        return Money.parseToMinor(raw)
     }
 
     /** A rough merchant guess: text after "at"/"to" up to a delimiter. */

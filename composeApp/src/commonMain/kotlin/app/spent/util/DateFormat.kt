@@ -48,7 +48,6 @@ object DateFormat {
         DayOfWeek.FRIDAY -> "Fri"
         DayOfWeek.SATURDAY -> "Sat"
         DayOfWeek.SUNDAY -> "Sun"
-        else -> ""
     }
 
     private fun mon(m: Month): String = when (m.number) {

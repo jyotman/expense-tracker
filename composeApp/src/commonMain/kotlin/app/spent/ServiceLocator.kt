@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.time.ExperimentalTime::class)
+
 package app.spent
 
 import app.spent.repository.CapturedNotificationRepository
@@ -5,6 +7,8 @@ import app.spent.repository.CategoryRepository
 import app.spent.repository.ExpenseRepository
 import app.spent.repository.RecurringRepository
 import app.spent.storage.SettingsStorage
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 /**
  * Minimal manual DI. Repositories are stateless wrappers over the shared SQLDelight
@@ -18,9 +22,10 @@ object ServiceLocator {
     val capturedNotificationRepository: CapturedNotificationRepository by lazy { CapturedNotificationRepository() }
     val settings: SettingsStorage get() = SettingsStorage.instance
 
-    /** One-time-per-launch work: seed categories, roll forward recurring expenses. */
+    /** One-time-per-launch work: seed categories, roll forward recurring expenses, prune old inbox. */
     fun onStart() {
         categoryRepository.ensureSeeded()
         recurringRepository.materializeDue()
+        capturedNotificationRepository.pruneReadBefore(Clock.System.now().minus(90.days))
     }
 }

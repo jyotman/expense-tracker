@@ -34,6 +34,9 @@ UPDATE recurring_rule SET lastGeneratedAt = ? WHERE id = ?;
 setActive:
 UPDATE recurring_rule SET isActive = ? WHERE id = ?;
 
+clearCategory:
+UPDATE recurring_rule SET categoryId = NULL WHERE categoryId = ?;
+
 deleteById:
 DELETE FROM recurring_rule WHERE id = ?;
 

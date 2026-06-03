@@ -19,6 +19,30 @@ import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+/** A form field the on-device AI can fill in. */
+enum class AiField { AMOUNT, MERCHANT, CATEGORY }
+
+/**
+ * The AI-assist phase for the expense form — one value instead of a handful of booleans that have to
+ * be flipped in lockstep. Drives the loading shimmer and the per-field "suggested" badges, and makes
+ * impossible combinations (loading *and* suggested, etc.) unrepresentable.
+ */
+sealed interface AiAssist {
+    /** No AI involved — manual entry or the regex fallback. */
+    data object Inactive : AiAssist
+
+    /** Gemini Nano is reading the notification; fields are loading. */
+    data object Loading : AiAssist
+
+    /** Nano returned; [fields] still hold its suggestions (until the user edits them). */
+    data class Suggested(val fields: Set<AiField>) : AiAssist
+
+    fun suggests(field: AiField): Boolean = this is Suggested && field in fields
+
+    /** Drop [field] from the suggestion set (the user just edited it by hand). */
+    fun without(field: AiField): AiAssist = if (this is Suggested) Suggested(fields - field) else this
+}
+
 data class ExpenseFormState(
     val expenseId: Long? = null,
     val capturedId: Long? = null,
@@ -35,16 +59,17 @@ data class ExpenseFormState(
     val categories: List<CategoryItem> = emptyList(),
     val currencySymbol: String = "$",
     val amountError: Boolean = false,
-    /** AI is reading the notification — fields are loading. */
-    val aiSuggesting: Boolean = false,
-    /** This field currently holds an AI suggestion (cleared once the user edits it). */
-    val aiSuggestedAmount: Boolean = false,
-    val aiSuggestedMerchant: Boolean = false,
-    val aiSuggestedCategory: Boolean = false,
+    val aiAssist: AiAssist = AiAssist.Inactive,
     val source: ExpenseSource = ExpenseSource.MANUAL,
     val saved: Boolean = false,
 ) {
     val isEdit: Boolean get() = expenseId != null
+
+    // Derived view flags — keep the screen reading simple booleans off the single AiAssist state.
+    val aiSuggesting: Boolean get() = aiAssist is AiAssist.Loading
+    val aiSuggestedAmount: Boolean get() = aiAssist.suggests(AiField.AMOUNT)
+    val aiSuggestedMerchant: Boolean get() = aiAssist.suggests(AiField.MERCHANT)
+    val aiSuggestedCategory: Boolean get() = aiAssist.suggests(AiField.CATEGORY)
 }
 
 class ExpenseFormViewModel : ViewModel() {
@@ -66,7 +91,7 @@ class ExpenseFormViewModel : ViewModel() {
         val e = expenses.getById(id) ?: return
         _state.value = _state.value.copy(
             expenseId = e.id,
-            amountText = formatAmountForEdit(e.amountMinor),
+            amountText = Money.toEditString(e.amountMinor),
             categoryId = e.categoryId,
             note = e.note.orEmpty(),
             merchant = e.merchant.orEmpty(),
@@ -76,16 +101,9 @@ class ExpenseFormViewModel : ViewModel() {
             // Editing a saved expense — never an AI suggestion, so clear any leftover loading/badges.
             recurring = false,
             amountError = false,
-            aiSuggesting = false,
-            aiSuggestedAmount = false,
-            aiSuggestedMerchant = false,
-            aiSuggestedCategory = false,
+            aiAssist = AiAssist.Inactive,
         )
     }
-
-    // The regex values for this captured item, kept as the fallback for when AI is unavailable/fails.
-    private var regexAmountText: String = ""
-    private var regexMerchant: String = ""
 
     /**
      * Open the form for a captured notification. If it already produced an expense, edit that one
@@ -99,9 +117,11 @@ class ExpenseFormViewModel : ViewModel() {
             loadExpense(existing) // already saved — edit, don't recreate
             return
         }
-        captured.markRead(capturedId)
-        regexAmountText = item.amountMinor?.let { formatAmountForEdit(it) } ?: ""
-        regexMerchant = item.merchant.orEmpty()
+        launchIo { captured.markRead(capturedId) }
+        // Regex fallback for this item, scoped to this load — passed into the AI coroutine so it can't
+        // leak into a later captured item opened before the AI call returns.
+        val regexAmount = item.amountMinor?.let { Money.toEditString(it) } ?: ""
+        val regexMerchant = item.merchant.orEmpty()
 
         if (ServiceLocator.settings.aiEnabled) {
             // AI path: blank the fields and show a loading state until Nano returns.
@@ -112,28 +132,22 @@ class ExpenseFormViewModel : ViewModel() {
                 categoryId = null,
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
-                aiSuggesting = true,
-                aiSuggestedAmount = false,
-                aiSuggestedMerchant = false,
-                aiSuggestedCategory = false,
+                aiAssist = AiAssist.Loading,
             )
-            runAiAssist(item.appLabel, item.title, item.text)
+            runAiAssist(item.appLabel, item.title, item.text, regexAmount, regexMerchant)
         } else {
             _state.value = _state.value.copy(
                 capturedId = capturedId,
-                amountText = regexAmountText,
+                amountText = regexAmount,
                 merchant = regexMerchant,
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
-                aiSuggesting = false,
-                aiSuggestedAmount = false,
-                aiSuggestedMerchant = false,
-                aiSuggestedCategory = false,
+                aiAssist = AiAssist.Inactive,
             )
         }
     }
 
-    private fun runAiAssist(appLabel: String, title: String, text: String) {
+    private fun runAiAssist(appLabel: String, title: String, text: String, regexAmount: String, regexMerchant: String) {
         viewModelScope.launch {
             val parsed = runCatching { createExpenseExtractor(aiEnabled = true).extract(appLabel, title, text) }
                 .getOrNull()
@@ -144,31 +158,33 @@ class ExpenseFormViewModel : ViewModel() {
                 val takeMerchant = cur.merchant.isBlank() && !parsed.merchant.isNullOrBlank()
                 val resolvedCategory = CategoryMatcher.resolveByName(parsed.categoryGuess, cur.categories)
                 val takeCategory = cur.categoryId == null && resolvedCategory != null
+                val suggested = buildSet {
+                    if (takeAmount) add(AiField.AMOUNT)
+                    if (takeMerchant) add(AiField.MERCHANT)
+                    if (takeCategory) add(AiField.CATEGORY)
+                }
                 _state.value = cur.copy(
-                    amountText = if (takeAmount) formatAmountForEdit(parsed.amountMinor) else cur.amountText,
-                    merchant = if (takeMerchant) parsed.merchant!! else cur.merchant,
+                    amountText = if (takeAmount) Money.toEditString(parsed.amountMinor) else cur.amountText,
+                    merchant = if (takeMerchant) parsed.merchant else cur.merchant,
                     categoryId = if (takeCategory) resolvedCategory else cur.categoryId,
-                    aiSuggesting = false,
-                    aiSuggestedAmount = takeAmount,
-                    aiSuggestedMerchant = takeMerchant,
-                    aiSuggestedCategory = takeCategory,
+                    aiAssist = AiAssist.Suggested(suggested),
                 )
             } else {
                 // AI unavailable or failed — fall back to the regex values (no AI badge).
                 _state.value = cur.copy(
-                    amountText = cur.amountText.ifBlank { regexAmountText },
+                    amountText = cur.amountText.ifBlank { regexAmount },
                     merchant = cur.merchant.ifBlank { regexMerchant },
-                    aiSuggesting = false,
+                    aiAssist = AiAssist.Inactive,
                 )
             }
         }
     }
 
     // Editing a field by hand clears its "suggested by AI" badge.
-    fun setAmount(text: String) { _state.value = _state.value.copy(amountText = text, amountError = false, aiSuggestedAmount = false) }
-    fun setCategory(id: Long?) { _state.value = _state.value.copy(categoryId = id, aiSuggestedCategory = false) }
+    fun setAmount(text: String) { _state.value = _state.value.copy(amountText = text, amountError = false, aiAssist = _state.value.aiAssist.without(AiField.AMOUNT)) }
+    fun setCategory(id: Long?) { _state.value = _state.value.copy(categoryId = id, aiAssist = _state.value.aiAssist.without(AiField.CATEGORY)) }
     fun setNote(text: String) { _state.value = _state.value.copy(note = text) }
-    fun setMerchant(text: String) { _state.value = _state.value.copy(merchant = text, aiSuggestedMerchant = false) }
+    fun setMerchant(text: String) { _state.value = _state.value.copy(merchant = text, aiAssist = _state.value.aiAssist.without(AiField.MERCHANT)) }
     fun setOccurredAt(instant: Instant) { _state.value = _state.value.copy(occurredAt = instant) }
     fun setRecurring(on: Boolean) { _state.value = _state.value.copy(recurring = on) }
     fun setIntervalUnit(unit: IntervalUnit) { _state.value = _state.value.copy(intervalUnit = unit) }
@@ -182,7 +198,7 @@ class ExpenseFormViewModel : ViewModel() {
             return
         }
         val now = Clock.System.now()
-        viewModelScope.launch {
+        launchIo {
             when {
                 s.isEdit -> {
                     expenses.update(
@@ -245,13 +261,11 @@ class ExpenseFormViewModel : ViewModel() {
 
     fun delete() {
         val id = _state.value.expenseId ?: return
-        expenses.delete(id)
-        _state.value = _state.value.copy(saved = true)
-    }
-
-    private fun formatAmountForEdit(amountMinor: Long): String {
-        val major = amountMinor / 100
-        val minor = (amountMinor % 100).toString().padStart(2, '0')
-        return if (amountMinor % 100 == 0L) major.toString() else "$major.$minor"
+        launchIo {
+            expenses.delete(id)
+            // Detach the source notification (if any) so it doesn't keep pointing at a deleted expense.
+            captured.clearExpenseLink(id)
+            _state.value = _state.value.copy(saved = true)
+        }
     }
 }

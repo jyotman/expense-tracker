@@ -2,7 +2,6 @@
 
 package app.spent.viewmodel
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.spent.ServiceLocator
 import app.spent.data.CategoryItem
@@ -12,9 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.datetime.TimeZone
 
 /** An expense joined with its (possibly null / deleted) category, for list rendering. */
 data class TransactionRow(val expense: ExpenseItem, val category: CategoryItem?)
@@ -26,13 +23,9 @@ data class TransactionsUiState(
     val currencySymbol: String = "$",
 )
 
-class TransactionsViewModel : ViewModel() {
+class TransactionsViewModel : PeriodScopedViewModel() {
     private val expenses = ServiceLocator.expenseRepository
     private val categories = ServiceLocator.categoryRepository
-    private val tz = TimeZone.currentSystemDefault()
-
-    val period: StateFlow<MonthPeriod> = PeriodController.period
-    private val rangeFlow = period.map { it.range(tz) }
 
     val uiState: StateFlow<TransactionsUiState> = combine(
         rangeFlow.flatMapLatest { (s, e) -> expenses.observeInRange(s, e) },
@@ -44,11 +37,9 @@ class TransactionsViewModel : ViewModel() {
             period = period,
             rows = items.map { TransactionRow(it, it.categoryId?.let(byId::get)) },
             totalMinor = items.sumOf { it.amountMinor },
-            currencySymbol = ServiceLocator.settings.currencySymbol,
+            currencySymbol = currencySymbol,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
 
-    fun delete(id: Long) = expenses.delete(id)
-    fun prevMonth() = PeriodController.prev()
-    fun nextMonth() = PeriodController.next()
+    fun delete(id: Long) { launchIo { expenses.delete(id) } }
 }

@@ -42,10 +42,10 @@ class CategoryRepository(
 
     fun listActive(): List<CategoryItem> = queries.selectActive().executeAsList().map { it.toItem() }
 
-    fun add(name: String, iconKey: String, colorHex: String): Long {
-        val nextOrder = (queries.countAll().executeAsOne())
+    fun add(name: String, iconKey: String, colorHex: String): Long = db.transactionWithResult {
+        val nextOrder = queries.countAll().executeAsOne()
         queries.insert(name, iconKey, colorHex, nextOrder)
-        return queries.lastInsertedId().executeAsOne()
+        queries.lastInsertedId().executeAsOne()
     }
 
     fun update(item: CategoryItem) {
@@ -56,7 +56,15 @@ class CategoryRepository(
         queries.setArchived(if (archived) 1L else 0L, id)
     }
 
-    fun delete(id: Long) = queries.deleteById(id)
+    /**
+     * Delete a category, first detaching any expenses / recurring rules that reference it (there is
+     * no DB-level foreign key) so they become uncategorized rather than pointing at a missing row.
+     */
+    fun delete(id: Long) = db.transaction {
+        db.expenseQueries.clearCategory(id)
+        db.recurringRuleQueries.clearCategory(id)
+        queries.deleteById(id)
+    }
 }
 
 private fun DbCategory.toItem() = CategoryItem(

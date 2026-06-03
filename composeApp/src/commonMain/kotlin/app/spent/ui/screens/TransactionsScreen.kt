@@ -48,8 +48,8 @@ fun TransactionsScreen(onEditExpense: (Long) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         MonthSelector(
             period = state.period,
-            onPrev = vm::prevMonth,
-            onNext = vm::nextMonth,
+            onPrev = vm::showPrevMonth,
+            onNext = vm::showNextMonth,
             modifier = Modifier.padding(top = 8.dp),
         )
         Row(

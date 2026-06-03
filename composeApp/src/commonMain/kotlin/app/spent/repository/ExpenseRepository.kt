@@ -36,7 +36,7 @@ class ExpenseRepository(
     fun observeCategoryTotals(start: Instant, end: Instant): Flow<List<CategoryTotal>> =
         queries.categoryTotalsInRange(start.toEpochMilliseconds(), end.toEpochMilliseconds())
             .asFlow().mapToList(dispatcher)
-            .map { rows -> rows.map { CategoryTotal(it.categoryId, it.total ?: 0L, it.cnt) } }
+            .map { rows -> rows.map { CategoryTotal(it.categoryId, it.total, it.cnt) } }
 
     fun totalInRange(start: Instant, end: Instant): Long =
         queries.totalInRange(start.toEpochMilliseconds(), end.toEpochMilliseconds())
@@ -54,17 +54,21 @@ class ExpenseRepository(
         source: ExpenseSource,
         recurringRuleId: Long? = null,
     ): Long {
-        queries.insert(
-            amountMinor,
-            categoryId,
-            note,
-            merchant,
-            occurredAt.toEpochMilliseconds(),
-            createdAt.toEpochMilliseconds(),
-            source.name,
-            recurringRuleId,
-        )
-        return queries.lastInsertedId().executeAsOne()
+        // insert + last_insert_rowid must be atomic on one connection, else a concurrent writer
+        // (e.g. the notification listener) can make lastInsertedId return the wrong row.
+        return db.transactionWithResult {
+            queries.insert(
+                amountMinor,
+                categoryId,
+                note,
+                merchant,
+                occurredAt.toEpochMilliseconds(),
+                createdAt.toEpochMilliseconds(),
+                source.name,
+                recurringRuleId,
+            )
+            queries.lastInsertedId().executeAsOne()
+        }
     }
 
     fun update(

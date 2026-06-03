@@ -18,15 +18,15 @@ class CategoriesViewModel : ViewModel() {
 
     fun add(name: String, iconKey: String, colorHex: String) {
         if (name.isBlank()) return
-        repo.add(name.trim(), iconKey, colorHex)
+        launchIo { repo.add(name.trim(), iconKey, colorHex) }
     }
 
     fun update(item: CategoryItem) {
         if (item.name.isBlank()) return
-        repo.update(item.copy(name = item.name.trim()))
+        launchIo { repo.update(item.copy(name = item.name.trim())) }
     }
 
-    fun setArchived(id: Long, archived: Boolean) = repo.setArchived(id, archived)
+    fun setArchived(id: Long, archived: Boolean) { launchIo { repo.setArchived(id, archived) } }
 
-    fun delete(id: Long) = repo.delete(id)
+    fun delete(id: Long) { launchIo { repo.delete(id) } }
 }
