@@ -17,6 +17,7 @@ import app.expensetracker.navigation.DeepLink
 import app.expensetracker.navigation.DeepLinks
 import app.expensetracker.navigation.Routes
 import app.expensetracker.ui.screens.BackupScreen
+import app.expensetracker.ui.screens.CaptureAppsScreen
 import app.expensetracker.ui.screens.CategoryEditScreen
 import app.expensetracker.ui.screens.CategoriesScreen
 import app.expensetracker.ui.screens.ExpenseFormScreen
@@ -111,7 +112,13 @@ fun App(onThemeModeChanged: (Boolean) -> Unit = {}) {
                     BackupScreen(onBack = { nav.popBackStack() })
                 }
                 composable(Routes.NOTIFICATION_CAPTURE) {
-                    NotificationCaptureScreen(onBack = { nav.popBackStack() })
+                    NotificationCaptureScreen(
+                        onBack = { nav.popBackStack() },
+                        onOpenCaptureApps = { nav.navigate(Routes.CAPTURE_APPS) },
+                    )
+                }
+                composable(Routes.CAPTURE_APPS) {
+                    CaptureAppsScreen(onBack = { nav.popBackStack() })
                 }
             }
         }

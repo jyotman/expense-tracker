@@ -40,6 +40,15 @@ class SettingsStorage(private val settings: Settings) {
             ?: emptySet()
         set(value) { settings[KEY_CAPTURE_PACKAGES] = value.joinToString(",") }
 
+    /**
+     * True once the user has explicitly configured their capture app list (via the picker or
+     * seeding on first open). Distinguishes "deliberately empty" from "never configured", so
+     * the processor can fall back to built-in defaults only when this is false.
+     */
+    var capturePackagesConfigured: Boolean
+        get() = settings.getBoolean(KEY_CAPTURE_CONFIGURED, false)
+        set(value) { settings[KEY_CAPTURE_CONFIGURED] = value }
+
     companion object {
         private const val KEY_CURRENCY = "currency_symbol"
         private const val KEY_CAPTURE_ENABLED = "capture_enabled"
@@ -47,6 +56,7 @@ class SettingsStorage(private val settings: Settings) {
         private const val KEY_LAST_BACKUP = "last_backup_at"
         private const val KEY_DRIVE_EMAIL = "drive_email"
         private const val KEY_CAPTURE_PACKAGES = "capture_packages"
+        private const val KEY_CAPTURE_CONFIGURED = "capture_configured"
 
         private lateinit var settingsFactory: () -> Settings
 

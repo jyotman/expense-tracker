@@ -11,4 +11,5 @@ actual object PlatformCapabilities {
     actual val onDeviceAiPossible: Boolean = false
     actual suspend fun probeOnDeviceAi(): AiAvailability = AiAvailability.UNAVAILABLE
     actual fun downloadOnDeviceAiModel(): Flow<AiModelDownload> = emptyFlow()
+    actual fun getInstalledApps(): List<InstalledApp> = emptyList()
 }

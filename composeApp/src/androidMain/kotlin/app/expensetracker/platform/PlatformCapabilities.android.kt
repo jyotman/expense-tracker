@@ -2,6 +2,8 @@ package app.expensetracker.platform
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import app.expensetracker.AppContext
@@ -68,6 +70,14 @@ actual object PlatformCapabilities {
      * Trigger the model download and translate ML Kit's [DownloadStatus] stream into [AiModelDownload].
      * Progress is reported as a fraction once the total size is known.
      */
+    actual fun getInstalledApps(): List<InstalledApp> {
+        val pm = AppContext.context.packageManager
+        return pm.getInstalledApplications(0)
+            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
+            .map { InstalledApp(it.packageName, pm.getApplicationLabel(it).toString()) }
+            .sortedBy { it.label.lowercase() }
+    }
+
     actual fun downloadOnDeviceAiModel(): Flow<AiModelDownload> = flow {
         val model = Generation.getClient()
         try {

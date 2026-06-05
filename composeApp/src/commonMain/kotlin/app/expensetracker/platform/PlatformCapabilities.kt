@@ -64,4 +64,11 @@ expect object PlatformCapabilities {
      * on an explicit user action (e.g. toggling AI on) — the model can be hundreds of MB.
      */
     fun downloadOnDeviceAiModel(): Flow<AiModelDownload>
+
+    /**
+     * Return all non-system apps installed on this device, sorted by display label.
+     * Used to populate the notification-capture app picker. iOS returns an empty list
+     * (no notification reading anyway).
+     */
+    fun getInstalledApps(): List<InstalledApp>
 }

@@ -8,5 +8,6 @@ object Routes {
     const val RECURRING = "recurring"
     const val BACKUP = "backup"
     const val NOTIFICATION_CAPTURE = "notification_capture"
+    const val CAPTURE_APPS = "capture_apps"
     const val INBOX = "inbox"
 }
