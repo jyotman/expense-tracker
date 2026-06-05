@@ -13,10 +13,12 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.expensetracker.data.CurrencyInfo
+import app.expensetracker.data.CurrencyMeta
 import app.expensetracker.platform.AiAvailability
 import app.expensetracker.viewmodel.SettingsViewModel
 
@@ -55,15 +58,18 @@ fun SettingsScreen(
     // Re-read the grant whenever we return here (e.g. from the system notification-access screen).
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
 
-    var showCurrencyDialog by remember { mutableStateOf(false) }
+    var showCurrencyPicker by remember { mutableStateOf(false) }
+    var pendingCurrency by remember { mutableStateOf<CurrencyInfo?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SectionHeader("General")
+        val currencyInfo = state.currencyCode?.let { CurrencyMeta.forCode(it) }
         ListItem(
             leadingContent = { Icon(Icons.Filled.Paid, null) },
-            headlineContent = { Text("Currency symbol") },
+            headlineContent = { Text("Currency") },
+            supportingContent = { Text(currencyInfo?.displayName ?: "Choose your default currency") },
             trailingContent = { Text(state.currencySymbol, style = MaterialTheme.typography.titleMedium) },
-            modifier = Modifier.clickable { showCurrencyDialog = true },
+            modifier = Modifier.clickable { showCurrencyPicker = true },
         )
         ListItem(
             leadingContent = { Icon(Icons.Filled.Category, null) },
@@ -166,25 +172,53 @@ fun SettingsScreen(
         )
     }
 
-    if (showCurrencyDialog) {
-        var input by remember { mutableStateOf(state.currencySymbol) }
+    if (showCurrencyPicker) {
         AlertDialog(
-            onDismissRequest = { showCurrencyDialog = false },
-            title = { Text("Currency symbol") },
+            onDismissRequest = { showCurrencyPicker = false },
+            title = { Text("Choose currency") },
             text = {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it.take(3) },
-                    singleLine = true,
-                    label = { Text("Symbol (e.g. $, ₹, €)") },
+                Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                    CurrencyMeta.homeOptions.forEach { c ->
+                        val selected = c.code == state.currencyCode
+                        ListItem(
+                            headlineContent = { Text(c.displayName) },
+                            supportingContent = { Text("${c.code} · ${c.symbol}") },
+                            trailingContent = {
+                                if (selected) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            modifier = Modifier.clickable {
+                                showCurrencyPicker = false
+                                when {
+                                    c.code == state.currencyCode -> {}                    // no-op
+                                    state.expenseCount > 0 -> pendingCurrency = c          // warn first
+                                    else -> vm.setDefaultCurrency(c.code)                  // first pick / no data
+                                }
+                            },
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showCurrencyPicker = false }) { Text("Cancel") } },
+        )
+    }
+
+    pendingCurrency?.let { target ->
+        val plural = if (state.expenseCount == 1L) "expense" else "expenses"
+        AlertDialog(
+            onDismissRequest = { pendingCurrency = null },
+            title = { Text("Change currency?") },
+            text = {
+                Text(
+                    "Your ${state.expenseCount} existing $plural won't be converted — they'll keep their " +
+                        "amounts and just show ${target.symbol}. New expenses will use " +
+                        "${target.displayName} (${target.symbol}).",
                 )
             },
             confirmButton = {
-                TextButton(onClick = { vm.setCurrencySymbol(input); showCurrencyDialog = false }) { Text("Save") }
+                TextButton(onClick = { vm.setDefaultCurrency(target.code); pendingCurrency = null }) { Text("Change") }
             },
-            dismissButton = {
-                TextButton(onClick = { showCurrencyDialog = false }) { Text("Cancel") }
-            },
+            dismissButton = { TextButton(onClick = { pendingCurrency = null }) { Text("Cancel") } },
         )
     }
 }

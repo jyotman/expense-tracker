@@ -7,19 +7,22 @@ CREATE TABLE expense (
     occurredAt INTEGER NOT NULL,
     createdAt INTEGER NOT NULL,
     source TEXT NOT NULL DEFAULT 'MANUAL',
-    recurringRuleId INTEGER
+    recurringRuleId INTEGER,
+    -- Snapshot of the originating notification (title + body) for AUTO expenses; NULL for manual/widget.
+    -- Denormalised on purpose: captured_notification rows get pruned, so a join wouldn't be durable.
+    sourceNotificationText TEXT
 );
 
 CREATE INDEX expense_occurredAt ON expense(occurredAt);
 CREATE INDEX expense_categoryId ON expense(categoryId);
 
 insert:
-INSERT INTO expense (amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO expense (amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertWithId:
-INSERT INTO expense (id, amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO expense (id, amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE expense
@@ -61,6 +64,9 @@ ORDER BY total DESC;
 
 selectAllForExport:
 SELECT * FROM expense ORDER BY occurredAt ASC, id ASC;
+
+countAll:
+SELECT count(*) FROM expense;
 
 lastInsertedId:
 SELECT last_insert_rowid();

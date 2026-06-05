@@ -1,5 +1,6 @@
 package app.expensetracker.platform
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 
 /** Result of probing whether on-device generative AI (Gemini Nano) can run here. */
@@ -71,4 +72,10 @@ expect object PlatformCapabilities {
      * (no notification reading anyway).
      */
     fun getInstalledApps(): List<InstalledApp>
+
+    /**
+     * Dispatcher for blocking platform I/O such as [getInstalledApps] (PackageManager). `Dispatchers.IO`
+     * on Android; `Dispatchers.Default` on iOS, where there is no IO dispatcher and the calls are no-ops.
+     */
+    val ioDispatcher: CoroutineDispatcher
 }

@@ -48,6 +48,8 @@ class MlKitGenAiExpenseExtractor : ExpenseExtractor {
                 amountMinor = amountMinor,
                 merchant = GenAiResponse.field(output, "merchant"),
                 categoryGuess = GenAiResponse.field(output, "category"),
+                currencyCode = GenAiResponse.field(output, "currency")
+                    ?.uppercase()?.takeIf { it.matches(Regex("[A-Z]{3}")) },
             )
         } catch (e: Throwable) {
             log.w(e) { "GenAI extract failed" }
@@ -60,8 +62,9 @@ class MlKitGenAiExpenseExtractor : ExpenseExtractor {
     private fun buildPrompt(appLabel: String, title: String, text: String, categories: String): String = """
         Extract the single spending transaction from this payment notification.
         Reply with ONLY compact JSON, no prose or markdown:
-        {"amount": <amount spent as a plain decimal number, no currency symbol, e.g. 12.50>, "merchant": <store/payee name or null>, "category": <one of: $categories — or null if unsure>}
+        {"amount": <amount spent as a plain decimal number, no currency symbol, e.g. 12.50>, "currency": <ISO 4217 code of that amount's currency, e.g. INR, USD, SGD>, "merchant": <store/payee name or null>, "category": <one of: $categories — or null if unsure>}
         Keep the decimal point exactly as written — 12.50 means twelve dollars fifty, not 1250.
+        Infer the currency from any symbol or code in the text (₹/Rs/INR → INR, S$/SGD → SGD, $/US$ → USD, €/EUR → EUR, £/GBP → GBP); use null only if truly unclear.
         Only the amount that actually left the account — ignore available balance, limits, and remaining funds.
         App: $appLabel
         Notification: "${title.take(160)} — ${text.take(400)}"

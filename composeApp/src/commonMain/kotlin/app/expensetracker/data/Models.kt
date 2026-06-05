@@ -47,6 +47,8 @@ data class ExpenseItem(
     val createdAt: Instant,
     val source: ExpenseSource,
     val recurringRuleId: Long?,
+    /** Original notification text (title + body) for AUTO expenses; null for manual/widget. */
+    val sourceNotificationText: String? = null,
 )
 
 data class RecurringRuleItem(

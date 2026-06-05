@@ -2,6 +2,7 @@
 
 package app.expensetracker
 
+import app.expensetracker.fx.FxRateService
 import app.expensetracker.repository.CapturedNotificationRepository
 import app.expensetracker.repository.CategoryRepository
 import app.expensetracker.repository.ExpenseRepository
@@ -20,6 +21,7 @@ object ServiceLocator {
     val expenseRepository: ExpenseRepository by lazy { ExpenseRepository() }
     val recurringRepository: RecurringRepository by lazy { RecurringRepository() }
     val capturedNotificationRepository: CapturedNotificationRepository by lazy { CapturedNotificationRepository() }
+    val fxRateService: FxRateService by lazy { FxRateService() }
     val settings: SettingsStorage get() = SettingsStorage.instance
 
     /** One-time-per-launch work: seed categories, roll forward recurring expenses, prune old inbox. */

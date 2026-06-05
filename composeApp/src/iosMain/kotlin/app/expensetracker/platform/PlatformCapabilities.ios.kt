@@ -1,5 +1,7 @@
 package app.expensetracker.platform
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -12,4 +14,7 @@ actual object PlatformCapabilities {
     actual suspend fun probeOnDeviceAi(): AiAvailability = AiAvailability.UNAVAILABLE
     actual fun downloadOnDeviceAiModel(): Flow<AiModelDownload> = emptyFlow()
     actual fun getInstalledApps(): List<InstalledApp> = emptyList()
+
+    // iOS has no Dispatchers.IO; the I/O calls above are no-ops, so Default is fine.
+    actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 }

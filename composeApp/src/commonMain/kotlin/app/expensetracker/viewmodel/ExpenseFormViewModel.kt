@@ -9,6 +9,8 @@ import app.expensetracker.capture.CategoryMatcher
 import app.expensetracker.capture.createExpenseExtractor
 import app.expensetracker.capture.dismissCaptureNotification
 import app.expensetracker.data.CategoryItem
+import app.expensetracker.data.CurrencyConverter
+import app.expensetracker.data.CurrencyMeta
 import app.expensetracker.data.ExpenseSource
 import app.expensetracker.data.IntervalUnit
 import app.expensetracker.data.Money
@@ -43,6 +45,33 @@ sealed interface AiAssist {
     fun without(field: AiField): AiAssist = if (this is Suggested) Suggested(fields - field) else this
 }
 
+/**
+ * A save-time currency-conversion suggestion. Surfaced only when the detected currency of a captured
+ * payment differs from the user's home currency. The amount field is left blank in that case — the
+ * user taps [Ready] to fill the converted value, or types their own. Never blocks saving.
+ */
+sealed interface FxSuggestion {
+    /** Same currency, undetected, or no home currency set — nothing to offer. */
+    data object None : FxSuggestion
+
+    /** Fetching today's rate. */
+    data object Loading : FxSuggestion
+
+    /** A converted amount is ready to apply. */
+    data class Ready(
+        val originalAmountMinor: Long,
+        val originalCode: String,
+        val convertedMinor: Long,
+        val targetCode: String,
+    ) : FxSuggestion
+
+    /** Currency differs but no rate was available (offline / not covered). Retry is offered. */
+    data class RateUnavailable(
+        val originalAmountMinor: Long,
+        val originalCode: String,
+    ) : FxSuggestion
+}
+
 data class ExpenseFormState(
     val expenseId: Long? = null,
     val capturedId: Long? = null,
@@ -60,7 +89,10 @@ data class ExpenseFormState(
     val currencySymbol: String = "$",
     val amountError: Boolean = false,
     val aiAssist: AiAssist = AiAssist.Inactive,
+    val fxSuggestion: FxSuggestion = FxSuggestion.None,
     val source: ExpenseSource = ExpenseSource.MANUAL,
+    /** Original notification text for an AUTO expense, shown as a read-only reference; null otherwise. */
+    val sourceNotificationText: String? = null,
     val saved: Boolean = false,
 ) {
     val isEdit: Boolean get() = expenseId != null
@@ -97,11 +129,13 @@ class ExpenseFormViewModel : ViewModel() {
             merchant = e.merchant.orEmpty(),
             occurredAt = e.occurredAt,
             source = e.source,
+            sourceNotificationText = e.sourceNotificationText,
             recurringRuleId = e.recurringRuleId,
             // Editing a saved expense — never an AI suggestion, so clear any leftover loading/badges.
             recurring = false,
             amountError = false,
             aiAssist = AiAssist.Inactive,
+            fxSuggestion = FxSuggestion.None,
         )
     }
 
@@ -122,6 +156,9 @@ class ExpenseFormViewModel : ViewModel() {
         // leak into a later captured item opened before the AI call returns.
         val regexAmount = item.amountMinor?.let { Money.toEditString(it) } ?: ""
         val regexMerchant = item.merchant.orEmpty()
+        // Snapshot the originating notification so the saved expense keeps a durable reference,
+        // even after the captured_notification row is pruned.
+        val notifText = notificationSnapshot(item.title, item.text)
 
         if (ServiceLocator.settings.aiEnabled) {
             // AI path: blank the fields and show a loading state until Nano returns.
@@ -132,9 +169,11 @@ class ExpenseFormViewModel : ViewModel() {
                 categoryId = null,
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
+                sourceNotificationText = notifText,
                 aiAssist = AiAssist.Loading,
+                fxSuggestion = FxSuggestion.None,
             )
-            runAiAssist(item.appLabel, item.title, item.text, regexAmount, regexMerchant)
+            runAiAssist(capturedId, item.appLabel, item.title, item.text, regexAmount, regexMerchant)
         } else {
             _state.value = _state.value.copy(
                 capturedId = capturedId,
@@ -142,19 +181,32 @@ class ExpenseFormViewModel : ViewModel() {
                 merchant = regexMerchant,
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
+                sourceNotificationText = notifText,
                 aiAssist = AiAssist.Inactive,
+                fxSuggestion = FxSuggestion.None,
             )
         }
     }
 
-    private fun runAiAssist(appLabel: String, title: String, text: String, regexAmount: String, regexMerchant: String) {
+    /** Combine a notification's title and body into one reference string (null if both are blank). */
+    private fun notificationSnapshot(title: String, text: String): String? =
+        listOf(title.trim(), text.trim()).filter { it.isNotEmpty() }
+            .joinToString("\n").ifBlank { null }
+
+    private fun runAiAssist(capturedId: Long, appLabel: String, title: String, text: String, regexAmount: String, regexMerchant: String) {
         viewModelScope.launch {
             val parsed = runCatching { createExpenseExtractor(aiEnabled = true).extract(appLabel, title, text) }
                 .getOrNull()
             val cur = _state.value
+            if (cur.capturedId != capturedId) return@launch // a newer captured item was opened
             if (parsed != null && parsed.amountMinor > 0) {
+                val defaultCode = ServiceLocator.settings.defaultCurrencyCode
+                val detected = parsed.currencyCode?.uppercase()
+                // Foreign-currency capture: don't prefill the amount — offer a conversion instead.
+                val differs = detected != null && defaultCode != null && detected != defaultCode.uppercase()
+
                 // Nano returned values — fill any field the user hasn't already typed into, and badge it.
-                val takeAmount = cur.amountText.isBlank()
+                val takeAmount = cur.amountText.isBlank() && !differs
                 val takeMerchant = cur.merchant.isBlank() && !parsed.merchant.isNullOrBlank()
                 val resolvedCategory = CategoryMatcher.resolveByName(parsed.categoryGuess, cur.categories)
                 val takeCategory = cur.categoryId == null && resolvedCategory != null
@@ -168,16 +220,64 @@ class ExpenseFormViewModel : ViewModel() {
                     merchant = if (takeMerchant) parsed.merchant else cur.merchant,
                     categoryId = if (takeCategory) resolvedCategory else cur.categoryId,
                     aiAssist = AiAssist.Suggested(suggested),
+                    fxSuggestion = if (differs) FxSuggestion.Loading else FxSuggestion.None,
                 )
+                if (differs) fetchConversion(capturedId, parsed.amountMinor, detected!!, defaultCode!!)
             } else {
-                // AI unavailable or failed — fall back to the regex values (no AI badge).
+                // AI unavailable or failed — fall back to the regex values (no AI badge, no conversion).
                 _state.value = cur.copy(
                     amountText = cur.amountText.ifBlank { regexAmount },
                     merchant = cur.merchant.ifBlank { regexMerchant },
                     aiAssist = AiAssist.Inactive,
+                    fxSuggestion = FxSuggestion.None,
                 )
             }
         }
+    }
+
+    /** Fetch today's rate and turn it into a [FxSuggestion]; falls back to RateUnavailable on failure. */
+    private fun fetchConversion(capturedId: Long, amountMinor: Long, fromCode: String, toCode: String) {
+        viewModelScope.launch {
+            val rate = runCatching { ServiceLocator.fxRateService.rate(fromCode, toCode) }.getOrNull()
+            val converted = rate?.let { CurrencyConverter.convertMinor(amountMinor, it) }
+            val s = _state.value
+            if (s.capturedId != capturedId) return@launch
+            _state.value = s.copy(
+                fxSuggestion = if (converted != null) {
+                    FxSuggestion.Ready(amountMinor, fromCode, converted, toCode)
+                } else {
+                    FxSuggestion.RateUnavailable(amountMinor, fromCode)
+                },
+            )
+        }
+    }
+
+    /** Apply the converted amount to the form and record the original amount in the note. */
+    fun applyFxSuggestion() {
+        val s = _state.value
+        val fx = s.fxSuggestion as? FxSuggestion.Ready ?: return
+        _state.value = s.copy(
+            amountText = Money.toEditString(fx.convertedMinor),
+            note = appendOriginalNote(s.note, fx.originalAmountMinor, fx.originalCode),
+            amountError = false,
+            aiAssist = s.aiAssist.without(AiField.AMOUNT),
+            fxSuggestion = FxSuggestion.None,
+        )
+    }
+
+    /** Retry the rate fetch after a RateUnavailable result (e.g. the user reconnected). */
+    fun retryFxRate() {
+        val s = _state.value
+        val fx = s.fxSuggestion as? FxSuggestion.RateUnavailable ?: return
+        val toCode = ServiceLocator.settings.defaultCurrencyCode ?: return
+        val capturedId = s.capturedId ?: return
+        _state.value = s.copy(fxSuggestion = FxSuggestion.Loading)
+        fetchConversion(capturedId, fx.originalAmountMinor, fx.originalCode, toCode)
+    }
+
+    private fun appendOriginalNote(existing: String, amountMinor: Long, code: String): String {
+        val line = "Originally ${CurrencyMeta.format(amountMinor, code)}"
+        return if (existing.isBlank()) line else "$existing\n$line"
     }
 
     // Editing a field by hand clears its "suggested by AI" badge.
@@ -248,6 +348,7 @@ class ExpenseFormViewModel : ViewModel() {
                         occurredAt = s.occurredAt,
                         createdAt = now,
                         source = s.source,
+                        sourceNotificationText = s.sourceNotificationText,
                     )
                     s.capturedId?.let { cid ->
                         captured.linkExpense(cid, newId)

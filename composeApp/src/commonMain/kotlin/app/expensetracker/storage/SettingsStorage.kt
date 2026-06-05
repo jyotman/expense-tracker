@@ -1,16 +1,33 @@
 package app.expensetracker.storage
 
+import app.expensetracker.data.CurrencyMeta
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 
 /**
- * User preferences (single-currency symbol, feature toggles, backup bookkeeping).
+ * User preferences (default currency, feature toggles, backup bookkeeping).
  * Transaction data lives in SQLDelight; this is only lightweight key-value state.
  */
 class SettingsStorage(private val settings: Settings) {
 
+    /**
+     * The user's home currency as an ISO 4217 code (e.g. "SGD"), or null until they explicitly pick
+     * one. All amounts are stored in this currency; it's a display/labelling choice, not a per-expense
+     * fact. Changing it does NOT re-convert existing expenses.
+     */
+    var defaultCurrencyCode: String?
+        get() = settings.getStringOrNull(KEY_CURRENCY_CODE)
+        set(value) {
+            if (value == null) settings.remove(KEY_CURRENCY_CODE) else settings[KEY_CURRENCY_CODE] = value
+        }
+
+    /**
+     * Display symbol for amounts — derived from [defaultCurrencyCode] once chosen, otherwise the
+     * legacy stored symbol (for installs predating the code-based setting). The currency picker sets
+     * [defaultCurrencyCode]; the setter here only writes the legacy symbol fallback.
+     */
     var currencySymbol: String
-        get() = settings.getString(KEY_CURRENCY, "$")
+        get() = defaultCurrencyCode?.let { CurrencyMeta.symbolFor(it) } ?: settings.getString(KEY_CURRENCY, "$")
         set(value) { settings[KEY_CURRENCY] = value }
 
     /** Whether the user opted into reading notifications for auto-capture (Android). */
@@ -51,6 +68,7 @@ class SettingsStorage(private val settings: Settings) {
 
     companion object {
         private const val KEY_CURRENCY = "currency_symbol"
+        private const val KEY_CURRENCY_CODE = "default_currency_code"
         private const val KEY_CAPTURE_ENABLED = "capture_enabled"
         private const val KEY_AI_ENABLED = "ai_enabled"
         private const val KEY_LAST_BACKUP = "last_backup_at"
@@ -65,5 +83,8 @@ class SettingsStorage(private val settings: Settings) {
         }
 
         val instance: SettingsStorage by lazy { SettingsStorage(settingsFactory()) }
+
+        /** A fresh Settings handle over the same underlying store, for components that own their own keys. */
+        fun createSettings(): Settings = settingsFactory()
     }
 }

@@ -6,6 +6,8 @@ data class ParsedExpense(
     val merchant: String? = null,
     /** Free-text category name the model guessed (e.g. "Food"); resolved later to a real category. */
     val categoryGuess: String? = null,
+    /** ISO 4217 code of the amount's currency, when the model could infer it; null otherwise. */
+    val currencyCode: String? = null,
 )
 
 /**

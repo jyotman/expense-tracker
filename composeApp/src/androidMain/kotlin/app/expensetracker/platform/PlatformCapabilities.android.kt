@@ -11,6 +11,8 @@ import co.touchlab.kermit.Logger
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -77,6 +79,8 @@ actual object PlatformCapabilities {
             .map { InstalledApp(it.packageName, pm.getApplicationLabel(it).toString()) }
             .sortedBy { it.label.lowercase() }
     }
+
+    actual val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     actual fun downloadOnDeviceAiModel(): Flow<AiModelDownload> = flow {
         val model = Generation.getClient()

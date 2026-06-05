@@ -14,6 +14,10 @@ import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val currencySymbol: String = "$",
+    /** Chosen default currency as an ISO code, or null until the user picks one. */
+    val currencyCode: String? = null,
+    /** Number of existing expenses — used to warn before a currency change. */
+    val expenseCount: Long = 0,
     val aiEnabled: Boolean = true,
     val captureEnabled: Boolean = false,
     val captureSupported: Boolean = false,
@@ -35,6 +39,10 @@ class SettingsViewModel : ViewModel() {
 
     private fun read(prev: SettingsUiState?) = SettingsUiState(
         currencySymbol = settings.currencySymbol,
+        currencyCode = settings.defaultCurrencyCode,
+        // Count once per VM (carried across refreshes) — it can't change from the Settings screen,
+        // so re-querying on every ON_RESUME would be wasted main-thread work.
+        expenseCount = prev?.expenseCount ?: ServiceLocator.expenseRepository.count(),
         aiEnabled = settings.aiEnabled,
         captureEnabled = settings.notificationCaptureEnabled,
         captureSupported = PlatformCapabilities.notificationCaptureSupported,
@@ -50,8 +58,9 @@ class SettingsViewModel : ViewModel() {
     /** Re-read state (e.g. after returning from the system notification-access screen). */
     fun refresh() { _state.value = read(_state.value) }
 
-    fun setCurrencySymbol(symbol: String) {
-        settings.currencySymbol = symbol.ifBlank { "$" }
+    /** Set the home currency by ISO code. Existing expenses are NOT re-converted (caller warns first). */
+    fun setDefaultCurrency(code: String) {
+        settings.defaultCurrencyCode = code
         refresh()
     }
 

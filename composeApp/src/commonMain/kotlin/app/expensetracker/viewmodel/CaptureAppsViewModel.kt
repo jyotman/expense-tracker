@@ -6,7 +6,6 @@ import app.expensetracker.ServiceLocator
 import app.expensetracker.capture.CaptureRules
 import app.expensetracker.platform.InstalledApp
 import app.expensetracker.platform.PlatformCapabilities
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,8 +32,8 @@ class CaptureAppsViewModel : ViewModel() {
     val state: StateFlow<CaptureAppsUiState> = _state.asStateFlow()
 
     init {
-        // PackageManager calls are blocking I/O — use the IO dispatcher.
-        viewModelScope.launch(Dispatchers.IO) {
+        // PackageManager calls are blocking I/O — use the platform IO dispatcher.
+        viewModelScope.launch(PlatformCapabilities.ioDispatcher) {
             val installed = PlatformCapabilities.getInstalledApps()
             val installedPackages = installed.map { it.packageName }.toSet()
             var selected = settings.capturePackages

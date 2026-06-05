@@ -44,6 +44,9 @@ class ExpenseRepository(
 
     fun getById(id: Long): ExpenseItem? = queries.selectById(id).executeAsOneOrNull()?.toItem()
 
+    /** Total number of stored expenses (used to warn before a currency change). */
+    fun count(): Long = queries.countAll().executeAsOne()
+
     fun add(
         amountMinor: Long,
         categoryId: Long?,
@@ -53,6 +56,7 @@ class ExpenseRepository(
         createdAt: Instant,
         source: ExpenseSource,
         recurringRuleId: Long? = null,
+        sourceNotificationText: String? = null,
     ): Long {
         // insert + last_insert_rowid must be atomic on one connection, else a concurrent writer
         // (e.g. the notification listener) can make lastInsertedId return the wrong row.
@@ -66,6 +70,7 @@ class ExpenseRepository(
                 createdAt.toEpochMilliseconds(),
                 source.name,
                 recurringRuleId,
+                sourceNotificationText,
             )
             queries.lastInsertedId().executeAsOne()
         }
@@ -102,4 +107,5 @@ private fun DbExpense.toItem() = ExpenseItem(
     createdAt = Instant.fromEpochMilliseconds(createdAt),
     source = ExpenseSource.fromDb(source),
     recurringRuleId = recurringRuleId,
+    sourceNotificationText = sourceNotificationText,
 )

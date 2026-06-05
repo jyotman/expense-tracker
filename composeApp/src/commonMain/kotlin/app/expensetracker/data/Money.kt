@@ -33,7 +33,7 @@ object Money {
         return if (amountMinor % 100 == 0L) major.toString() else "$major.$minor"
     }
 
-    private fun groupThousands(value: Long): String {
+    internal fun groupThousands(value: Long): String {
         val s = value.toString()
         val sb = StringBuilder()
         var count = 0

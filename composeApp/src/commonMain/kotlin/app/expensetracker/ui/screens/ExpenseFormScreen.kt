@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -35,7 +36,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,8 +51,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,12 +74,16 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.expensetracker.data.CurrencyMeta
+import app.expensetracker.data.ExpenseSource
 import app.expensetracker.data.IntervalUnit
 import app.expensetracker.util.DateFormat
 import app.expensetracker.viewmodel.ExpenseFormViewModel
+import app.expensetracker.viewmodel.FxSuggestion
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -131,6 +143,12 @@ fun ExpenseFormScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().aiShimmer(state.aiSuggesting).aiReveal(state.aiSuggestedAmount),
+            )
+
+            FxSuggestionArea(
+                fx = state.fxSuggestion,
+                onUse = vm::applyFxSuggestion,
+                onRetry = vm::retryFxRate,
             )
 
             Row(
@@ -249,6 +267,13 @@ fun ExpenseFormScreen(
                     Text("Delete")
                 }
             }
+
+            // Where this expense came from — kept at the bottom as low-key reference.
+            ExpenseSourceReference(
+                notificationText = state.sourceNotificationText,
+                source = state.source,
+                isEdit = state.isEdit,
+            )
         }
     }
 
@@ -272,6 +297,134 @@ fun ExpenseFormScreen(
             },
         ) {
             DatePicker(state = pickerState)
+        }
+    }
+}
+
+/**
+ * Read-only footer showing where this expense came from: the original notification (collapsed by
+ * default — it's reference, not focus) for AUTO captures, or a muted "added manually / from widget"
+ * line for an existing manual expense. Kept in the same slot so both kinds feel consistent. A fresh
+ * manual add shows nothing (the absence of a notification is self-evident).
+ */
+@Composable
+private fun ExpenseSourceReference(notificationText: String?, source: ExpenseSource, isEdit: Boolean) {
+    when {
+        notificationText != null -> NotificationReferenceCard(notificationText)
+        isEdit -> {
+            val label = if (source == ExpenseSource.WIDGET) "Added from widget" else "Added manually"
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Edit, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** The captured notification behind an AUTO expense — a collapsed card that expands to the raw text. */
+@Composable
+private fun NotificationReferenceCard(text: String) {
+    var expanded by remember { mutableStateOf(false) }
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Filled.Notifications, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp),
+            )
+            Text("From notification", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            // The snapshot is "title\nbody" — show the title a touch stronger than the body.
+            val parts = text.split("\n", limit = 2)
+            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
+                Text(parts[0], style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                if (parts.size > 1 && parts[1].isNotBlank()) {
+                    Text(
+                        parts[1],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The save-time conversion suggestion shown under the Amount field when the captured payment's
+ * currency differs from the user's home currency. The amount field is blank in that case; the user
+ * taps "Use" to fill the converted value (the ViewModel also records the original in the note), or
+ * types their own. Never blocks saving.
+ */
+@Composable
+private fun FxSuggestionArea(fx: FxSuggestion, onUse: () -> Unit, onRetry: () -> Unit) {
+    when (fx) {
+        FxSuggestion.None -> Unit
+        FxSuggestion.Loading -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text(
+                "Checking currency…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        is FxSuggestion.Ready -> {
+            val original = CurrencyMeta.format(fx.originalAmountMinor, fx.originalCode)
+            val converted = CurrencyMeta.format(fx.convertedMinor, fx.targetCode)
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Detected $original — about $converted at today's rate.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Button(onClick = onUse, modifier = Modifier.align(Alignment.End)) { Text("Use $converted") }
+                }
+            }
+        }
+        is FxSuggestion.RateUnavailable -> {
+            val original = CurrencyMeta.format(fx.originalAmountMinor, fx.originalCode)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Looks like $original — a different currency from yours. Couldn't fetch today's " +
+                            "rate; check your connection.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    TextButton(onClick = onRetry, modifier = Modifier.align(Alignment.End)) { Text("Retry") }
+                }
+            }
         }
     }
 }
