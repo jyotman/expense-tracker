@@ -13,6 +13,7 @@ Key libraries (see `gradle/libs.versions.toml` for versions):
 - **Prefs:** `multiplatform-settings` (`SettingsStorage`)
 - **On-device AI:** Gemini Nano via the **ML Kit GenAI Prompt API** (`com.google.mlkit:genai-prompt`, foreground-only), with a regex rules fallback. (Replaced the experimental `com.google.ai.edge.aicore` SDK, which was unreachable on stock devices.)
 - **Widget:** Jetpack Glance
+- **FX rates:** `frankfurter.dev` (keyless ECB data) via **Ktor**, cached once/day on-device (`FxRateCache`) — powers the multi-currency save-time conversion suggestion; the only outbound network call in the app
 - **Backup:** Storage Access Framework export/import (JSON) + OS auto-backup — no server, no cloud SDK
 - **Build config:** BuildKonfig. **No Firebase** (dropped vs nourge — not needed, avoids `google-services.json`)
 
@@ -25,9 +26,10 @@ composeApp/src/                    # Shared KMP library (namespace app.expensetr
     viewmodel/     # one ViewModel per screen + PeriodScopedViewModel base + PeriodController (shared month selection)
     repository/    # ExpenseRepository, CategoryRepository, RecurringRepository (SQLDelight Flows)
     storage/       # SettingsStorage (multiplatform-settings wrapper)
-    data/          # domain models, Money (minor units), TimePeriod, DefaultCategories
+    data/          # domain models, Money (minor units), CurrencyMeta + CurrencyConverter (multi-currency), TimePeriod, DefaultCategories
     db/            # Database holder (driver injected per platform)
-    capture/       # ExpenseExtractor (expect), TransactionDetector, CategoryMatcher, CaptureRules (currency/keyword/package data), RulesExpenseExtractor, GenAiResponse (LLM JSON parsing)
+    capture/       # ExpenseExtractor (expect; ParsedExpense carries LLM-detected currencyCode), TransactionDetector, CategoryMatcher, CaptureRules (currency/keyword/package data), RulesExpenseExtractor, GenAiResponse (LLM JSON parsing)
+    fx/            # FxRateService + FxRateCache (daily-cached FX rates from frankfurter.dev, for the save-time conversion suggestion)
     backup/        # BackupService (JSON export/restore over the DB)
     platform/      # PlatformCapabilities, Backup (expect)
     navigation/    # Routes, DeepLinks bus
@@ -70,7 +72,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 **Material3 + native components first.** Latest Material3, dynamic color on Android 12+. Reach for the platform/library component before building a custom one. Theme tokens live in `ui/theme/`.
 
-**Money as minor units.** Amounts are stored as `Long` minor units (cents); format via `Money`. Single currency (symbol only, no FX).
+**Money & currency.** Amounts are stored as `Long` minor units in the user's **home currency**, set as an ISO 4217 code (`SettingsStorage.defaultCurrencyCode`; symbol/precision derived via `CurrencyMeta`, format via `Money`). The home currency is always 2-decimal (the picker is restricted to 2-dp currencies), so `Money`'s 2-decimal assumption holds. There is **no per-expense currency column** — when an auto-captured payment is in a different currency, the foreground LLM detects it and the form offers a **non-enforced save-time conversion suggestion** (`FxRateService` daily rates → `CurrencyConverter`); the converted amount is stored in the home currency and the original is appended to the note. Changing the home currency does not re-convert existing expenses (user is warned). The originating notification is snapshotted onto `expense.sourceNotificationText`.
 
 **Reactive data.** Repositories expose SQLDelight queries as Flows (`asFlow().mapToList`); ViewModels `combine` them and `stateIn`. The shown month is global via `PeriodController`.
 
