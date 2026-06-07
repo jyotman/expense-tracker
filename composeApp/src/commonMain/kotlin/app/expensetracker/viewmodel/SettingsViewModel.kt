@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val currencySymbol: String = "$",
@@ -37,12 +38,16 @@ class SettingsViewModel : ViewModel() {
     private val _state = MutableStateFlow(read(null))
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
+    init {
+        // count() is a blocking SQLite call; load it once on a background thread, then carry it
+        // across refreshes via prev (expense count can't change from the Settings screen).
+        launchIo { _state.update { it.copy(expenseCount = ServiceLocator.expenseRepository.count()) } }
+    }
+
     private fun read(prev: SettingsUiState?) = SettingsUiState(
         currencySymbol = settings.currencySymbol,
         currencyCode = settings.defaultCurrencyCode,
-        // Count once per VM (carried across refreshes) — it can't change from the Settings screen,
-        // so re-querying on every ON_RESUME would be wasted main-thread work.
-        expenseCount = prev?.expenseCount ?: ServiceLocator.expenseRepository.count(),
+        expenseCount = prev?.expenseCount ?: 0L,
         aiEnabled = settings.aiEnabled,
         captureEnabled = settings.notificationCaptureEnabled,
         captureSupported = PlatformCapabilities.notificationCaptureSupported,

@@ -9,7 +9,6 @@ import androidx.core.app.NotificationManagerCompat
 import app.expensetracker.AndroidEntry
 import app.expensetracker.AppContext
 import app.expensetracker.ServiceLocator
-import app.expensetracker.data.Money
 
 /** Posts one isolated "expense detected — tap to add" notification per captured transaction. */
 object CaptureNotifications {
@@ -28,17 +27,18 @@ object CaptureNotifications {
 
     /** One notification per detected transaction. Distinct id ⇒ they stack, never group, and
      *  tapping one (auto-cancel) leaves the others. */
-    fun showDetected(capturedId: Long, amountMinor: Long, merchant: String?) {
+    fun showDetected(capturedId: Long, amountMinor: Long, currencyToken: String?, merchant: String?) {
         val context = AppContext.context
         ensureChannel(context)
-        val symbol = ServiceLocator.settings.currencySymbol
-        val title = "Add expense · ${Money.format(amountMinor, symbol)}"
+        val homeSymbol = ServiceLocator.settings.currencySymbol
+        val title = "Add expense · ${formatCapturedAmount(amountMinor, currencyToken, homeSymbol)}"
         val body = merchant?.takeIf { it.isNotBlank() }?.let { "at $it — tap to review & save" }
             ?: "Tap to review & save"
+        val notifId = notifId(capturedId)
 
         val pending = PendingIntent.getActivity(
             context,
-            capturedId.toInt(),
+            notifId,
             AndroidEntry.openCapturedIntent(context, capturedId),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -50,11 +50,15 @@ object CaptureNotifications {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(capturedId.toInt(), notification) }
+        runCatching { NotificationManagerCompat.from(context).notify(notifId, notification) }
     }
 
     /** Dismiss a transaction's notification once its expense has been saved. */
     fun cancel(capturedId: Long) {
-        runCatching { NotificationManagerCompat.from(AppContext.context).cancel(capturedId.toInt()) }
+        runCatching { NotificationManagerCompat.from(AppContext.context).cancel(notifId(capturedId)) }
     }
+
+    // SQLite rowids are positive Longs; mask to 31 bits so the Int notification ID is always positive
+    // and never overflows, even after billions of cumulative inserts.
+    private fun notifId(capturedId: Long): Int = (capturedId % Int.MAX_VALUE).toInt()
 }

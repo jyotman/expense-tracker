@@ -89,4 +89,6 @@ data class CapturedNotificationItem(
     val postedAt: Instant,
     val isRead: Boolean,
     val expenseId: Long?,
+    /** Raw token extracted from the notification text ("S$", "SGD", "₹", etc.); null if none detected. */
+    val detectedCurrencyToken: String?,
 )

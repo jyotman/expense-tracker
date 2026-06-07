@@ -86,4 +86,56 @@ class FxRateServiceTest {
         val svc = FxRateService(FxRateCache(MapSettings()), failing, now = { 1_000L })
         assertNull(svc.rate("INR", "SGD"))
     }
+
+    // AED and SAR are hard-pegged to USD and absent from the ECB dataset; the service derives their
+    // rate from the USD entry in the snapshot rather than returning null.
+
+    @Test
+    fun aed_rate_derived_from_usd_peg_when_absent_from_ecb() = runTest {
+        // Cache has base=INR with USD rate. AED is NOT in rates (as ECB data lacks it).
+        // Expected: 1 AED = (1/3.6725) USD = (1/3.6725) / usdPerInr INR
+        val usdPerInr = 0.01053
+        val svc = FxRateService(
+            FxRateCache(MapSettings()),
+            jsonClient("""{"base":"INR","rates":{"USD":$usdPerInr,"SGD":0.01352}}"""),
+            now = { 1_000L },
+        )
+        val expected = 1.0 / (usdPerInr * 3.6725)
+        assertEquals(expected, svc.rate("AED", "INR")!!, 1e-6)
+    }
+
+    @Test
+    fun sar_rate_derived_from_usd_peg_when_absent_from_ecb() = runTest {
+        val usdPerInr = 0.01053
+        val svc = FxRateService(
+            FxRateCache(MapSettings()),
+            jsonClient("""{"base":"INR","rates":{"USD":$usdPerInr}}"""),
+            now = { 1_000L },
+        )
+        val expected = 1.0 / (usdPerInr * 3.75)
+        assertEquals(expected, svc.rate("SAR", "INR")!!, 1e-6)
+    }
+
+    @Test
+    fun aed_rate_when_home_currency_is_usd() = runTest {
+        // If the home currency is USD, base=USD and AED peg applies directly.
+        val svc = FxRateService(
+            FxRateCache(MapSettings()),
+            jsonClient("""{"base":"USD","rates":{"INR":94.97,"SGD":1.35}}"""),
+            now = { 1_000L },
+        )
+        // 1 AED = 1/3.6725 USD
+        assertEquals(1.0 / 3.6725, svc.rate("AED", "USD")!!, 1e-6)
+    }
+
+    @Test
+    fun unknown_currency_still_returns_null_with_peg_fallback_present() = runTest {
+        // Currencies that are neither in ECB data nor pegged to USD must still return null.
+        val svc = FxRateService(
+            FxRateCache(MapSettings()),
+            jsonClient("""{"base":"INR","rates":{"USD":0.01053}}"""),
+            now = { 1_000L },
+        )
+        assertNull(svc.rate("XYZ", "INR"))
+    }
 }

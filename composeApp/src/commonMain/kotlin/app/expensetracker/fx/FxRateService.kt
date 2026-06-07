@@ -59,8 +59,21 @@ class FxRateService(
         val t = to.uppercase()
         if (f == t) return 1.0
         val snapshot = freshSnapshot(t) ?: return null
-        val perBase = snapshot.rates[f] ?: return null // `f` units per 1 `t`
+        val perBase = snapshot.rates[f]
+            ?: derivePeggedRate(f, snapshot.base, snapshot.rates)
+            ?: return null // `f` units per 1 `t`
         return if (perBase > 0.0) 1.0 / perBase else null
+    }
+
+    /**
+     * AED and SAR are hard-pegged to USD and absent from the ECB dataset. Derive their rate from the
+     * USD entry in the snapshot. [base] is the snapshot's base currency.
+     */
+    private fun derivePeggedRate(code: String, base: String, rates: Map<String, Double>): Double? {
+        val codePerUsd = USD_PEGS[code] ?: return null
+        if (base == "USD") return codePerUsd
+        val usdPerBase = rates["USD"] ?: return null
+        return usdPerBase * codePerUsd
     }
 
     private suspend fun freshSnapshot(base: String): FxSnapshot? {
@@ -84,6 +97,9 @@ class FxRateService(
 
     private companion object {
         const val MAX_AGE_MS = 24L * 60 * 60 * 1000
+
+        /** AED and SAR are hard-pegged to USD and absent from the ECB dataset: X units per 1 USD. */
+        val USD_PEGS = mapOf("AED" to 3.6725, "SAR" to 3.75)
 
         fun defaultClient() = HttpClient {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }

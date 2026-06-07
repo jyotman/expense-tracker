@@ -9,7 +9,10 @@ CREATE TABLE captured_notification (
     merchant TEXT,
     postedAt INTEGER NOT NULL,
     isRead INTEGER NOT NULL DEFAULT 0,
-    expenseId INTEGER
+    expenseId INTEGER,
+    -- Raw currency token extracted from the notification text ("S$", "SGD", "₹", etc.); NULL when
+    -- no currency marker was detected. Shown as-is in the inbox — never assumed to be home currency.
+    detectedCurrencyToken TEXT
 );
 
 CREATE INDEX captured_postedAt ON captured_notification(postedAt);
@@ -17,8 +20,8 @@ CREATE INDEX captured_postedAt ON captured_notification(postedAt);
 CREATE INDEX captured_notifKey ON captured_notification(notifKey);
 
 insert:
-INSERT INTO captured_notification (notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt, isRead, expenseId)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL);
+INSERT INTO captured_notification (notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt, isRead, expenseId, detectedCurrencyToken)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?);
 
 selectAll:
 SELECT * FROM captured_notification

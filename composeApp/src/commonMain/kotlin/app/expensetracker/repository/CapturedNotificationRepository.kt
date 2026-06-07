@@ -40,12 +40,13 @@ class CapturedNotificationRepository(
         amountMinor: Long?,
         merchant: String?,
         postedAt: Instant,
+        detectedCurrencyToken: String?,
     ): Long? {
         return db.transactionWithResult {
             if (notifKey != null && queries.findDuplicate(notifKey, amountMinor).executeAsOneOrNull() != null) {
                 null
             } else {
-                queries.insert(notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt.toEpochMilliseconds())
+                queries.insert(notifKey, packageName, appLabel, title, text, amountMinor, merchant, postedAt.toEpochMilliseconds(), detectedCurrencyToken)
                 queries.lastInsertedId().executeAsOne()
             }
         }
@@ -74,4 +75,5 @@ private fun DbCaptured.toItem() = CapturedNotificationItem(
     postedAt = Instant.fromEpochMilliseconds(postedAt),
     isRead = isRead == 1L,
     expenseId = expenseId,
+    detectedCurrencyToken = detectedCurrencyToken,
 )

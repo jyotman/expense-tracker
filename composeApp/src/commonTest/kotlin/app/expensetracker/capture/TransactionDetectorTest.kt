@@ -40,6 +40,52 @@ class TransactionDetectorTest {
     }
 
     @Test
+    fun extracts_currency_token_from_notification_text() {
+        assertEquals("S\$", TransactionDetector.extractCurrencyToken("You spent S\$45.20 at STARBUCKS"))
+        assertEquals("₹", TransactionDetector.extractCurrencyToken("Debited ₹1,200 for Uber"))
+        assertEquals("SGD", TransactionDetector.extractCurrencyToken("SGD 18.39 charged at fp*Food Panda"))
+        assertEquals("USD", TransactionDetector.extractCurrencyToken("Transaction Alert: USD 45.00 debited"))
+        assertEquals("\$", TransactionDetector.extractCurrencyToken("\$12.99 charged"))
+        assertEquals("EUR", TransactionDetector.extractCurrencyToken("EUR 12,50 spent at Cafe"))
+    }
+
+    @Test
+    fun returns_null_token_when_no_currency_marker_present() {
+        assertNull(TransactionDetector.extractCurrencyToken("You spent 50 at Store ref 7829341"))
+        assertNull(TransactionDetector.extractCurrencyToken("Purchase 9.99 card ending 1234"))
+    }
+
+    @Test
+    fun format_captured_amount_symbol_tokens_no_space() {
+        assertEquals("S\$45.20", formatCapturedAmount(4520L, "S\$"))
+        assertEquals("₹1,200", formatCapturedAmount(120000L, "₹"))   // grouping applied
+        assertEquals("₹1,200", formatCapturedAmount(120000L, null, "₹")) // null token falls back to homeSymbol
+    }
+
+    @Test
+    fun format_captured_amount_iso_code_tokens_have_space() {
+        assertEquals("SGD 18.39", formatCapturedAmount(1839L, "SGD"))
+        assertEquals("USD 45.20", formatCapturedAmount(4520L, "USD"))
+    }
+
+    @Test
+    fun format_captured_amount_bare_number_when_no_token_and_no_home_symbol() {
+        assertEquals("45", formatCapturedAmount(4500L, null)) // no symbol available
+        assertEquals("1,200", formatCapturedAmount(120000L, null)) // grouped even without token
+    }
+
+    @Test
+    fun extracts_sar_currency_token() {
+        assertEquals("SAR", TransactionDetector.extractCurrencyToken("SAR 150.00 debited"))
+    }
+
+    @Test
+    fun comma_decimal_amount_preferred_over_earlier_bare_integer() {
+        // Without the comma-in-withDecimal fix, "9876" would win as matches.first().
+        assertEquals(1250L, TransactionDetector.extractAmountMinor("txn 9876 amount 12,50"))
+    }
+
+    @Test
     fun guesses_merchant() {
         assertEquals("STARBUCKS", TransactionDetector.guessMerchant("You spent \$5 at STARBUCKS on Monday"))
         assertEquals("John", TransactionDetector.guessMerchant("Payment sent to John for lunch"))

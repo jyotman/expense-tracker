@@ -5,6 +5,7 @@ package app.expensetracker.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.expensetracker.ServiceLocator
+import app.expensetracker.capture.CaptureRules
 import app.expensetracker.capture.CategoryMatcher
 import app.expensetracker.capture.createExpenseExtractor
 import app.expensetracker.capture.dismissCaptureNotification
@@ -173,18 +174,24 @@ class ExpenseFormViewModel : ViewModel() {
                 aiAssist = AiAssist.Loading,
                 fxSuggestion = FxSuggestion.None,
             )
-            runAiAssist(capturedId, item.appLabel, item.title, item.text, regexAmount, regexMerchant)
+            runAiAssist(capturedId, item.appLabel, item.title, item.text, regexAmount, regexMerchant, item.detectedCurrencyToken, item.amountMinor)
         } else {
+            val defaultCode = ServiceLocator.settings.defaultCurrencyCode
+            val detected = item.detectedCurrencyToken?.uppercase()
+                ?.takeIf { it in CaptureRules.currencyCodes }
+            val amountMinor = item.amountMinor
+            val differs = detected != null && defaultCode != null && detected != defaultCode.uppercase() && amountMinor != null
             _state.value = _state.value.copy(
                 capturedId = capturedId,
-                amountText = regexAmount,
+                amountText = if (differs) "" else regexAmount,
                 merchant = regexMerchant,
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
                 sourceNotificationText = notifText,
                 aiAssist = AiAssist.Inactive,
-                fxSuggestion = FxSuggestion.None,
+                fxSuggestion = if (differs) FxSuggestion.Loading else FxSuggestion.None,
             )
+            if (differs) fetchConversion(capturedId, amountMinor, detected, defaultCode)
         }
     }
 
@@ -193,7 +200,7 @@ class ExpenseFormViewModel : ViewModel() {
         listOf(title.trim(), text.trim()).filter { it.isNotEmpty() }
             .joinToString("\n").ifBlank { null }
 
-    private fun runAiAssist(capturedId: Long, appLabel: String, title: String, text: String, regexAmount: String, regexMerchant: String) {
+    private fun runAiAssist(capturedId: Long, appLabel: String, title: String, text: String, regexAmount: String, regexMerchant: String, detectedCurrencyToken: String?, regexAmountMinor: Long?) {
         viewModelScope.launch {
             val parsed = runCatching { createExpenseExtractor(aiEnabled = true).extract(appLabel, title, text) }
                 .getOrNull()
@@ -222,15 +229,20 @@ class ExpenseFormViewModel : ViewModel() {
                     aiAssist = AiAssist.Suggested(suggested),
                     fxSuggestion = if (differs) FxSuggestion.Loading else FxSuggestion.None,
                 )
-                if (differs) fetchConversion(capturedId, parsed.amountMinor, detected!!, defaultCode!!)
+                if (differs) fetchConversion(capturedId, parsed.amountMinor, detected, defaultCode)
             } else {
-                // AI unavailable or failed — fall back to the regex values (no AI badge, no conversion).
+                // AI unavailable or failed — fall back to regex values; still offer FX if the
+                // detected token is a known ISO code differing from home currency.
+                val defaultCode = ServiceLocator.settings.defaultCurrencyCode
+                val detected = detectedCurrencyToken?.uppercase()?.takeIf { it in CaptureRules.currencyCodes }
+                val differs = detected != null && defaultCode != null && detected != defaultCode.uppercase() && regexAmountMinor != null
                 _state.value = cur.copy(
-                    amountText = cur.amountText.ifBlank { regexAmount },
+                    amountText = if (differs) "" else cur.amountText.ifBlank { regexAmount },
                     merchant = cur.merchant.ifBlank { regexMerchant },
                     aiAssist = AiAssist.Inactive,
-                    fxSuggestion = FxSuggestion.None,
+                    fxSuggestion = if (differs) FxSuggestion.Loading else FxSuggestion.None,
                 )
+                if (differs) fetchConversion(capturedId, regexAmountMinor, detected, defaultCode)
             }
         }
     }

@@ -1,0 +1,1 @@
+ALTER TABLE captured_notification ADD COLUMN detectedCurrencyToken TEXT;

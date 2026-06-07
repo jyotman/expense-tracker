@@ -53,15 +53,26 @@ object TransactionDetector {
      * falls back to the first bare number — never the longest, which would latch onto card or
      * reference digits like "ending 1234".
      */
-    fun extractAmountMinor(text: String): Long? {
+    fun extractAmountMinor(text: String): Long? = bestMatch(text)?.let {
+        Money.parseToMinor(it.groups["num"]?.value ?: return null)
+    }
+
+    /**
+     * Returns the raw currency token (symbol or code) that appeared next to the best amount match,
+     * or null if no currency marker was present. The raw token is returned as-is from the text
+     * ("S$", "SGD", "₹", "$", etc.) — callers must not assume it maps to any specific ISO code.
+     */
+    fun extractCurrencyToken(text: String): String? {
+        val match = bestMatch(text) ?: return null
+        return (match.groups["sym"] ?: match.groups["sym2"])?.value?.trim()
+    }
+
+    private fun bestMatch(text: String): MatchResult? {
         val matches = amountRegex.findAll(text).toList()
         if (matches.isEmpty()) return null
-
         val tagged = matches.firstOrNull { it.groups["sym"] != null || it.groups["sym2"] != null }
-        val withDecimal = matches.firstOrNull { it.groups["num"]?.value?.contains('.') == true }
-        val chosen = tagged ?: withDecimal ?: matches.first()
-        val raw = chosen.groups["num"]?.value ?: return null
-        return Money.parseToMinor(raw)
+        val withDecimal = matches.firstOrNull { it.groups["num"]?.value?.let { n -> n.contains('.') || n.contains(',') } == true }
+        return tagged ?: withDecimal ?: matches.first()
     }
 
     /** A rough merchant guess: text after "at"/"to" up to a delimiter. */

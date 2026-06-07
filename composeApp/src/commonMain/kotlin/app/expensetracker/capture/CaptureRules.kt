@@ -17,7 +17,7 @@ object CaptureRules {
 
     /** ISO-style currency codes recognised adjacent to an amount (either side). */
     val currencyCodes: List<String> = listOf(
-        "INR", "USD", "SGD", "EUR", "GBP", "AED", "JPY", "CNY", "AUD", "CAD", "CHF", "HKD",
+        "INR", "USD", "SGD", "EUR", "GBP", "AED", "SAR", "JPY", "CNY", "AUD", "CAD", "CHF", "HKD",
     )
 
     /** Words that signal money leaving the account (not a credit/refund). */

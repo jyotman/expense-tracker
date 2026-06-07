@@ -38,8 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.expensetracker.ServiceLocator
+import app.expensetracker.capture.formatCapturedAmount
 import app.expensetracker.data.CapturedNotificationItem
-import app.expensetracker.data.Money
 import app.expensetracker.ui.components.EmptyState
 import app.expensetracker.util.DateFormat
 import kotlin.time.Clock
@@ -90,7 +90,7 @@ fun InboxScreen(
 }
 
 @Composable
-private fun InboxRow(item: CapturedNotificationItem, symbol: String, now: kotlin.time.Instant, onClick: () -> Unit) {
+private fun InboxRow(item: CapturedNotificationItem, homeSymbol: String, now: kotlin.time.Instant, onClick: () -> Unit) {
     val saved = item.expenseId != null
     val rowBg = if (!item.isRead) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
     Row(
@@ -118,7 +118,7 @@ private fun InboxRow(item: CapturedNotificationItem, symbol: String, now: kotlin
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = item.amountMinor?.let { Money.format(it, symbol) } ?: "—",
+                text = item.amountMinor?.let { formatCapturedAmount(it, item.detectedCurrencyToken, homeSymbol) } ?: "—",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
             )

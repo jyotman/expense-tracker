@@ -34,6 +34,7 @@ object NotificationCaptureProcessor {
         if (!TransactionDetector.isLikelySpend(combined)) return
         val amount = TransactionDetector.extractAmountMinor(combined) ?: return
         val merchant = TransactionDetector.guessMerchant(combined)
+        val currencyToken = TransactionDetector.extractCurrencyToken(combined)
 
         val id = ServiceLocator.capturedNotificationRepository.recordIfNew(
             notifKey = notifKey,
@@ -44,9 +45,10 @@ object NotificationCaptureProcessor {
             amountMinor = amount,
             merchant = merchant,
             postedAt = Instant.fromEpochMilliseconds(postedAtMillis),
+            detectedCurrencyToken = currencyToken,
         ) ?: return // duplicate of an already-recorded notification
 
         log.i { "Detected expense candidate #$id from $packageName" }
-        CaptureNotifications.showDetected(id, amount, merchant)
+        CaptureNotifications.showDetected(id, amount, currencyToken, merchant)
     }
 }
