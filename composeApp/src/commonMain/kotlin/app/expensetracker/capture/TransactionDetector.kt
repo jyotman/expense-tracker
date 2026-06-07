@@ -39,22 +39,51 @@ object TransactionDetector {
         }
     }
 
-    // Keyword matchers use word boundaries so "sent" can't fire inside "consent", "charge" inside
-    // "recharge", or "paid" inside "prepaid". Inflections are data in CaptureRules, not regex tricks.
-    private fun keywordRegex(words: List<String>): Regex =
-        Regex("""\b(?:${alternation(words)})\b""", RegexOption.IGNORE_CASE)
+    /**
+     * A case-insensitive regex that matches any of [terms] only at word boundaries, so a keyword
+     * like "paid" matches "you paid" but NOT "unpaid"/"prepaid", and "transfer" doesn't fire on
+     * "transferred". Multi-word phrases ("payment due") are anchored at their outer boundaries.
+     * Longer terms are tried first so the alternation prefers the most specific match.
+     */
+    private fun wordSetRegex(terms: List<String>): Regex =
+        Regex(
+            """\b(?:""" + terms.sortedByDescending { it.length }.joinToString("|") { it.escapeRegex() } + """)\b""",
+            RegexOption.IGNORE_CASE,
+        )
 
-    private val spendRegex = keywordRegex(CaptureRules.spendKeywords)
-    private val incomeRegex = keywordRegex(CaptureRules.incomeKeywords)
-    private val promoRegex = keywordRegex(CaptureRules.promoKeywords)
+    private val blockRegex = wordSetRegex(CaptureRules.blockPhrases)
+    private val strongSpendRegex = wordSetRegex(CaptureRules.strongSpendKeywords)
+    private val weakSpendRegex = wordSetRegex(CaptureRules.weakSpendKeywords)
+    private val strongIncomeRegex = wordSetRegex(CaptureRules.strongIncomeKeywords)
+    private val promoRegex = wordSetRegex(CaptureRules.promoKeywords)
 
-    fun isIncome(text: String): Boolean = incomeRegex.containsMatchIn(text)
+    fun isIncome(text: String): Boolean = strongIncomeRegex.containsMatchIn(text)
 
-    /** True if the text looks like an outgoing payment with an amount. */
+    /**
+     * True if the text looks like a completed outgoing payment with an amount.
+     *
+     * Decision order:
+     *  1. Hard block — OTPs, declined/failed, bill-due reminders → always false.
+     *  2. Strong spend keyword (spent/debited/charged/…) → true if amount present, regardless of
+     *     weak income context (cashback rewards, referral credits appended to confirmations).
+     *  3. Weak spend keyword (payment/transaction/transfer/…) → true only when no strong income
+     *     signal is present, so "salary payment received" stays rejected.
+     *
+     * A promo filter runs last: when promotional language is present, only a currency-tagged amount
+     * is strong enough evidence of a real payment — a bare number is promo math ("500 bonus miles").
+     *
+     * All keyword matching is word-boundary aware (see [wordSetRegex]) so substrings of unrelated
+     * words ("unpaid", "transferred", "prepaid") never trigger a capture.
+     */
     fun isLikelySpend(text: String): Boolean {
         if (text.isBlank()) return false
-        if (isIncome(text)) return false
-        if (!spendRegex.containsMatchIn(text)) return false
+        if (blockRegex.containsMatchIn(text)) return false
+        val strong = strongSpendRegex.containsMatchIn(text)
+        val weak = weakSpendRegex.containsMatchIn(text)
+        if (!strong && !weak) return false
+        // A weak spend word (payment/transfer/…) loses to a strong income signal, so
+        // "salary payment received" stays rejected; a strong word wins regardless.
+        if (!strong && isIncome(text)) return false
         if (extractAmountMinor(text) == null) return false
         // Promotional copy pairs marketing numbers with transactional words ("...on every
         // purchase"). In that context only a currency-tagged amount is strong enough evidence

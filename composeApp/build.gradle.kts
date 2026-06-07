@@ -86,6 +86,11 @@ kotlin {
             implementation(libs.multiplatform.settings.test)
             implementation(libs.ktor.client.mock)
         }
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
     }
 }
 

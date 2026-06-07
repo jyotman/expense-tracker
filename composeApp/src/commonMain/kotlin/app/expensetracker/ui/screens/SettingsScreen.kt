@@ -5,7 +5,9 @@ package app.expensetracker.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,14 +16,9 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Paid
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -29,20 +26,15 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.expensetracker.data.CurrencyInfo
 import app.expensetracker.data.CurrencyMeta
 import app.expensetracker.platform.AiAvailability
 import app.expensetracker.viewmodel.SettingsViewModel
@@ -53,14 +45,12 @@ fun SettingsScreen(
     onOpenRecurring: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenNotificationCapture: () -> Unit,
+    onOpenCurrencyPicker: () -> Unit,
 ) {
     val vm: SettingsViewModel = viewModel { SettingsViewModel() }
     val state by vm.state.collectAsState()
     // Re-read the grant whenever we return here (e.g. from the system notification-access screen).
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
-
-    var showCurrencyPicker by remember { mutableStateOf(false) }
-    var pendingCurrency by remember { mutableStateOf<CurrencyInfo?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SectionHeader("General")
@@ -70,7 +60,7 @@ fun SettingsScreen(
             headlineContent = { Text("Currency") },
             supportingContent = { Text(currencyInfo?.displayName ?: "Choose your default currency") },
             trailingContent = { Text(state.currencySymbol, style = MaterialTheme.typography.titleMedium) },
-            modifier = Modifier.clickable { showCurrencyPicker = true },
+            modifier = Modifier.clickable(onClick = onOpenCurrencyPicker),
         )
         ListItem(
             leadingContent = { Icon(Icons.Filled.Category, null) },
@@ -97,16 +87,6 @@ fun SettingsScreen(
                         if (state.captureEnabled && state.notificationAccessGranted) "On — reading bank & wallet alerts"
                         else if (state.captureEnabled) "On — needs notification access"
                         else "Off",
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = state.captureEnabled,
-                        onCheckedChange = { on ->
-                            vm.setCaptureEnabled(on)
-                            // Turning it on is pointless without access — send them to the explainer.
-                            if (on && !state.notificationAccessGranted) onOpenNotificationCapture()
-                        },
                     )
                 },
                 modifier = Modifier.clickable(onClick = onOpenNotificationCapture),
@@ -175,56 +155,6 @@ fun SettingsScreen(
             supportingContent = { Text("Export or import your data as a file") },
             trailingContent = { NavChevron() },
             modifier = Modifier.clickable(onClick = onOpenBackup),
-        )
-    }
-
-    if (showCurrencyPicker) {
-        AlertDialog(
-            onDismissRequest = { showCurrencyPicker = false },
-            title = { Text("Choose currency") },
-            text = {
-                Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                    CurrencyMeta.homeOptions.forEach { c ->
-                        val selected = c.code == state.currencyCode
-                        ListItem(
-                            headlineContent = { Text(c.displayName) },
-                            supportingContent = { Text("${c.code} · ${c.symbol}") },
-                            trailingContent = {
-                                if (selected) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            modifier = Modifier.clickable {
-                                showCurrencyPicker = false
-                                when {
-                                    c.code == state.currencyCode -> {}                    // no-op
-                                    state.expenseCount > 0 -> pendingCurrency = c          // warn first
-                                    else -> vm.setDefaultCurrency(c.code)                  // first pick / no data
-                                }
-                            },
-                        )
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showCurrencyPicker = false }) { Text("Cancel") } },
-        )
-    }
-
-    pendingCurrency?.let { target ->
-        val plural = if (state.expenseCount == 1L) "expense" else "expenses"
-        AlertDialog(
-            onDismissRequest = { pendingCurrency = null },
-            title = { Text("Change currency?") },
-            text = {
-                Text(
-                    "Your ${state.expenseCount} existing $plural won't be converted — they'll keep their " +
-                        "amounts and just show ${target.symbol}. New expenses will use " +
-                        "${target.displayName} (${target.symbol}).",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { vm.setDefaultCurrency(target.code); pendingCurrency = null }) { Text("Change") }
-            },
-            dismissButton = { TextButton(onClick = { pendingCurrency = null }) { Text("Cancel") } },
         )
     }
 }

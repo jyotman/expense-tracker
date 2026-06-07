@@ -25,8 +25,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -49,8 +49,10 @@ fun MainScreen(
     onOpenRecurring: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenNotificationCapture: () -> Unit,
+    onOpenCurrencyPicker: () -> Unit,
 ) {
-    var tab by remember { mutableStateOf(Tab.Summary) }
+    var tabIndex by rememberSaveable { mutableIntStateOf(Tab.Summary.ordinal) }
+    val tab = Tab.entries[tabIndex]
     val inboxVm: InboxViewModel = viewModel { InboxViewModel() }
     val unreadCount by inboxVm.unreadCount.collectAsState()
 
@@ -78,7 +80,7 @@ fun MainScreen(
                 Tab.entries.forEach { entry ->
                     NavigationBarItem(
                         selected = tab == entry,
-                        onClick = { tab = entry },
+                        onClick = { tabIndex = entry.ordinal },
                         icon = { Icon(entry.icon, contentDescription = entry.label) },
                         label = { Text(entry.label) },
                     )
@@ -105,6 +107,7 @@ fun MainScreen(
                     onOpenRecurring = onOpenRecurring,
                     onOpenBackup = onOpenBackup,
                     onOpenNotificationCapture = onOpenNotificationCapture,
+                    onOpenCurrencyPicker = onOpenCurrencyPicker,
                 )
             }
         }

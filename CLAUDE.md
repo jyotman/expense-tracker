@@ -15,7 +15,7 @@ Key libraries (see `gradle/libs.versions.toml` for versions):
 - **Widget:** Jetpack Glance
 - **FX rates:** `frankfurter.dev` (keyless ECB data) via **Ktor**, cached once/day on-device (`FxRateCache`) — powers the multi-currency save-time conversion suggestion; the only outbound network call in the app
 - **Backup:** Storage Access Framework export/import (JSON) + OS auto-backup — no server, no cloud SDK
-- **Build config:** BuildKonfig. **No Firebase** (dropped vs nourge — not needed, avoids `google-services.json`)
+- **Build config:** BuildKonfig.
 
 ## Project layout
 
@@ -37,7 +37,8 @@ composeApp/src/                    # Shared KMP library (namespace app.expensetr
   commonMain/sqldelight/databases/      # committed schema snapshots (1.db, …) for migration verification
   androidMain/kotlin/app/expensetracker/   # actuals: ML Kit GenAI (Gemini Nano) extractor, SAF backup, capture processor, Glance widget
   iosMain/kotlin/app/expensetracker/       # MainViewController, iOS actuals (no-op stubs where the platform can't)
-  commonTest/kotlin/app/expensetracker/    # shared tests (parsing/matching live here)
+  commonTest/kotlin/app/expensetracker/    # shared tests (parsing/matching/Flow logic live here)
+  androidHostTest/kotlin/app/expensetracker/  # JVM-only tests that need platform drivers (e.g. SQLite JDBC for DB-backed repo tests)
 androidApp/                        # Android entry point (applicationId app.expensetracker)
   src/main/kotlin/app/expensetracker/MainActivity.kt, ExpenseTrackerApp.kt
   src/main/kotlin/app/expensetracker/capture/SpendNotificationListener.kt   # manifest-declared — see README gotcha
@@ -59,7 +60,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 # iOS — verify shared code compiles for the simulator target
 ./gradlew :composeApp:compileKotlinIosSimulatorArm64
 
-# Tests (parsing/matching unit tests live in commonTest, run as Android host tests)
+# Tests — runs commonTest + androidHostTest together
 ./gradlew :composeApp:testAndroidHostTest
 ./gradlew :composeApp:testAndroidHostTest --tests "app.expensetracker.capture.*"
 ```
@@ -80,15 +81,26 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 1. Edit the `.sq` to the new desired schema.
 2. Add a migration `composeApp/src/commonMain/sqldelight/app/expensetracker/db/<N>.sqm`, where `<N>` is the version you're migrating *from* (e.g. `1.sqm` = v1→v2) — `ALTER TABLE …` / `CREATE TABLE …` for the delta. The runtime version is `(highest .sqm number) + 1`; the driver auto-runs `Schema.migrate` on upgrade (no driver code change).
 3. Regenerate the snapshot: `./gradlew :composeApp:generateCommonMainExpenseTrackerDatabaseSchema` (writes the new `<N+1>.db`); commit it.
-4. `./gradlew :composeApp:testAndroidHostTest` (or `:composeApp:verifyCommonMainExpenseTrackerDatabaseMigration`) must pass. There are **no `.sqm` files yet** — the current 4-table schema is the `1.db` baseline.
+4. `./gradlew :composeApp:testAndroidHostTest` (or `:composeApp:verifyCommonMainExpenseTrackerDatabaseMigration`) must pass.
 
 **On-device only.** Notification parsing and AI run entirely on-device; nothing is sent to a server. Backup writes a user-controlled file — never auto-upload to a remote endpoint.
 
+**Notification capture keyword tiers.** `isLikelySpend` uses three tiers in `CaptureRules`: `blockPhrases` (hard reject — OTPs, declined, bill-due reminders) → `strongSpendKeywords` (win even with income words present) → `weakSpendKeywords` (lose to `strongIncomeKeywords`). All keyword matching is word-boundary aware, so inflections are listed explicitly (e.g. `"charge"` does not cover `"charges"`). Both `"transfer"` and `"transferred"` are weak spend signals: because capture is review-to-confirm (a false positive is one inbox dismiss, a miss is an untracked spend), recall beats precision, so a bare "X transferred to your account" is captured even though it may be incoming — a genuine credit ("salary … transferred") is still suppressed by the strong-income tier. `"cashback"` is intentionally absent from income keywords — banks append it to payment confirmations. Two further layers reject promo false-positives: `promoKeywords` (when marketing copy is present, only a *currency-tagged* amount counts as a spend — a bare number is promo math like "500 bonus miles") and `plausibleAmount` in `TransactionDetector` (percentages, advertised "20 off" discounts, date ranges/times, and digits glued into larger tokens are never amounts). Extend `CaptureRules` when a bank's format is missed; verify with `TransactionDetectorTest`.
+
 ## Testing
 
-Pure logic (amount extraction, spend/income detection, category matching) lives in testable objects (`TransactionDetector`, `CategoryMatcher`) with tests in `commonTest`. Express platform-dependent logic as pure functions taking the platform value as a parameter so it can be tested in `commonTest`.
+**What to test and where:**
+- `commonTest` — pure logic, ViewModel state flows, repository Flows, storage round-trips. Runs on JVM via `testAndroidHostTest`. The vast majority of tests live here.
+- `androidHostTest` — tests that need a JVM-only driver, currently: `ExpenseRepository` tests backed by an in-memory SQLite JDBC driver (`JdbcSqliteDriver(IN_MEMORY)`). Add tests here only when `commonTest` can't cover it (i.e. you genuinely need a real DB or JVM-specific platform class).
 
-No Compose UI tests or Android instrumented tests are wired up — flag before adding, they're non-trivial.
+**Patterns in use:**
+- **Turbine** — test `Flow`/`StateFlow` emissions with `.test { awaitItem() }`. Use for any reactive query or observable state.
+- **`runTest` + `TestDispatcher`** — wrap coroutine tests in `runTest`. Pass `Dispatchers.Unconfined` to repository constructors in tests so emissions are synchronous.
+- **`MapSettings`** — from `multiplatform-settings-test`; use instead of real `SettingsStorage` to avoid touching shared state between tests.
+- **Constructor injection** — repositories and services take their dependencies as constructor params with production defaults (e.g. `ExpenseRepository(db, dispatcher)`). Tests pass fakes/in-memory variants. ViewModels currently use `ServiceLocator` directly and are harder to unit-test in isolation; prefer testing at the repository/logic layer instead.
+- **`launchIo {}`** — shorthand defined in `ViewModelExt.kt` for `viewModelScope.launch(PlatformCapabilities.ioDispatcher)`. Use it for all blocking I/O in ViewModels instead of raw `launch`.
+
+**What's not wired up:** No Compose UI tests or Android instrumented tests. The app is still in active feature development — screens change shape too often for UI tests to pay off yet. Revisit when the screen surfaces stabilize; the right path at that point is Robolectric + `compose-ui-test-junit4`, which runs on JVM inside `testAndroidHostTest` without an emulator.
 
 ## Working norms
 

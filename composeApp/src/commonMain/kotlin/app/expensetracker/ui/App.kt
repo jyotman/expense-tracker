@@ -20,6 +20,7 @@ import app.expensetracker.ui.screens.BackupScreen
 import app.expensetracker.ui.screens.CaptureAppsScreen
 import app.expensetracker.ui.screens.CategoryEditScreen
 import app.expensetracker.ui.screens.CategoriesScreen
+import app.expensetracker.ui.screens.CurrencyPickerScreen
 import app.expensetracker.ui.screens.ExpenseFormScreen
 import app.expensetracker.ui.screens.InboxScreen
 import app.expensetracker.ui.screens.MainScreen
@@ -77,6 +78,7 @@ fun App(onThemeModeChanged: (Boolean) -> Unit = {}) {
                         onOpenRecurring = { nav.navigate(Routes.RECURRING) },
                         onOpenBackup = { nav.navigate(Routes.BACKUP) },
                         onOpenNotificationCapture = { nav.navigate(Routes.NOTIFICATION_CAPTURE) },
+                        onOpenCurrencyPicker = { nav.navigate(Routes.CURRENCY_PICKER) },
                     )
                 }
                 composable(Routes.EXPENSE_FORM) {
@@ -119,6 +121,9 @@ fun App(onThemeModeChanged: (Boolean) -> Unit = {}) {
                 }
                 composable(Routes.CAPTURE_APPS) {
                     CaptureAppsScreen(onBack = { nav.popBackStack() })
+                }
+                composable(Routes.CURRENCY_PICKER) {
+                    CurrencyPickerScreen(onBack = { nav.popBackStack() })
                 }
             }
         }

@@ -44,13 +44,147 @@ class TransactionDetectorTest {
         assertEquals(999L, TransactionDetector.extractAmountMinor("Purchase 9.99 card ending 1234"))
     }
 
+    // ---- isLikelySpend: strong spend keywords ----------------------------------------
+
     @Test
-    fun flags_spend_vs_income() {
+    fun strong_spend_always_captured() {
+        // Every strong keyword with a plain amount
         assertTrue(TransactionDetector.isLikelySpend("You spent \$45.20 at Tesco"))
-        assertTrue(TransactionDetector.isLikelySpend("INR 500 debited for electricity bill"))
-        assertFalse(TransactionDetector.isLikelySpend("You received \$500 salary"))
-        assertFalse(TransactionDetector.isLikelySpend("Refund of \$20 credited"))
+        assertTrue(TransactionDetector.isLikelySpend("INR 500 debited from your account"))
+        assertTrue(TransactionDetector.isLikelySpend("INR 500 debit from your account"))
+        assertTrue(TransactionDetector.isLikelySpend("SGD 18.39 charged at FoodPanda"))
+        assertTrue(TransactionDetector.isLikelySpend("\$12.99 charge applied"))
+        assertTrue(TransactionDetector.isLikelySpend("Purchase of AUD 89.00 at Amazon"))
+        assertTrue(TransactionDetector.isLikelySpend("INR 2000 deducted for postpaid bill"))
+        assertTrue(TransactionDetector.isLikelySpend("SGD 500 withdrawn at DBS ATM"))
+        assertTrue(TransactionDetector.isLikelySpend("You bought 3 items for \$34.50"))
+    }
+
+    @Test
+    fun strong_spend_beats_income_words_in_same_notification() {
+        // Trust Bank: payment confirmation with cashback reward appended
+        assertTrue(
+            TransactionDetector.isLikelySpend(
+                "You've spent SGD 42.38 at SHOPEE SINGAPORE GPAY on 7 Jun 2026 with Trust Cashback card. You'll receive estimated S\$0.42 cashback*."
+            )
+        )
+        // Charged + "refund policy" mention
+        assertTrue(TransactionDetector.isLikelySpend("SGD 99 charged at Hotel. Refund policy applies."))
+        // Deducted + "salary" mention (deducted is unambiguous)
+        assertTrue(TransactionDetector.isLikelySpend("INR 500 deducted from your salary account"))
+    }
+
+    @Test
+    fun strong_spend_without_amount_is_rejected() {
+        assertFalse(TransactionDetector.isLikelySpend("You spent at Tesco today"))
+        assertFalse(TransactionDetector.isLikelySpend("Account debited"))
+        assertFalse(TransactionDetector.isLikelySpend("Card charged successfully"))
+    }
+
+    // ---- isLikelySpend: weak spend keywords -----------------------------------------
+
+    @Test
+    fun weak_spend_captured_without_income_signal() {
+        assertTrue(TransactionDetector.isLikelySpend("Payment of SGD 45.20 processed"))
+        assertTrue(TransactionDetector.isLikelySpend("Transaction: SGD 99.00 to Shopee"))
+        assertTrue(TransactionDetector.isLikelySpend("Txn of INR 1000 at Swiggy"))
+        assertTrue(TransactionDetector.isLikelySpend("Transfer complete: SGD 500 to John"))
+        assertTrue(TransactionDetector.isLikelySpend("Payment sent to GRAB: \$12.50"))
+        assertTrue(TransactionDetector.isLikelySpend("You paid \$34.00 at NTUC"))
+    }
+
+    @Test
+    fun weak_spend_rejected_when_strong_income_present() {
+        assertFalse(TransactionDetector.isLikelySpend("Payment of \$5000 received from employer"))
+        assertFalse(TransactionDetector.isLikelySpend("Salary payment of \$5000 credited to account"))
+        assertFalse(TransactionDetector.isLikelySpend("Refund of \$20 credited to your account"))
+        assertFalse(TransactionDetector.isLikelySpend("Transfer of \$1000 received from John"))
+        assertFalse(TransactionDetector.isLikelySpend("Your transaction of \$500 has been reversed"))
+        assertFalse(TransactionDetector.isLikelySpend("You received \$500 salary this month"))
+        assertFalse(TransactionDetector.isLikelySpend("INR 50000 salary credited by employer"))
+    }
+
+    // ---- isLikelySpend: income-only notifications ------------------------------------
+
+    @Test
+    fun income_only_notifications_rejected() {
+        assertFalse(TransactionDetector.isLikelySpend("INR 5000 credited to your account"))
+        assertFalse(TransactionDetector.isLikelySpend("You received \$800 from John"))
+        assertFalse(TransactionDetector.isLikelySpend("Refund of \$20 processed"))
+        assertFalse(TransactionDetector.isLikelySpend("SGD 45 refunded to your card"))
+        assertFalse(TransactionDetector.isLikelySpend("Payment reversed: INR 500"))
+        assertFalse(TransactionDetector.isLikelySpend("SGD 0.42 cashback credited to your account"))
+    }
+
+    // ---- isLikelySpend: block phrases -----------------------------------------------
+
+    @Test
+    fun otp_notifications_always_rejected() {
+        // Trust Bank OTP format — seen in production
+        assertFalse(
+            TransactionDetector.isLikelySpend(
+                "Authenticate your purchase — Your one-time password is KGI-579945 for your online transaction of SGD 42.38"
+            )
+        )
+        assertFalse(TransactionDetector.isLikelySpend("Your one time password is 123456 for transaction \$45"))
+        assertFalse(TransactionDetector.isLikelySpend("Your OTP 482910 for payment of INR 500"))
+        assertFalse(TransactionDetector.isLikelySpend("Enter passcode to authorise SGD 100 transfer"))
+        assertFalse(TransactionDetector.isLikelySpend("Tap here to verify your payment of SGD 45.20"))
+        assertFalse(TransactionDetector.isLikelySpend("Tap to verify your SGD 99 transaction"))
+        assertFalse(TransactionDetector.isLikelySpend("Authenticate your purchase of \$99 via Trust App"))
+    }
+
+    @Test
+    fun declined_and_failed_transactions_rejected() {
+        assertFalse(TransactionDetector.isLikelySpend("Transaction declined: \$45.00 at GRAB"))
+        assertFalse(TransactionDetector.isLikelySpend("Card declined at Starbucks for \$6.50"))
+        assertFalse(TransactionDetector.isLikelySpend("Payment failed: SGD 99.00 to Shopee"))
+        assertFalse(TransactionDetector.isLikelySpend("Transaction failed at POS terminal \$34.00"))
+        assertFalse(TransactionDetector.isLikelySpend("Transfer failed: SGD 200 to John"))
+        assertFalse(TransactionDetector.isLikelySpend("Insufficient funds for \$150 transaction at NTUC"))
+    }
+
+    @Test
+    fun bill_due_reminders_rejected() {
+        assertFalse(TransactionDetector.isLikelySpend("Payment due: \$500 credit card bill"))
+        assertFalse(TransactionDetector.isLikelySpend("Your payment due on 15 Jun: SGD 350"))
+        assertFalse(TransactionDetector.isLikelySpend("Minimum payment of \$50 due for your card"))
+        assertFalse(TransactionDetector.isLikelySpend("Amount due: SGD 350 by end of month"))
+    }
+
+    // ---- isLikelySpend: no-signal rejections ----------------------------------------
+
+    @Test
+    fun no_spend_keyword_is_rejected_even_with_amount() {
+        assertFalse(TransactionDetector.isLikelySpend("Your account balance is \$1234.56"))
+        assertFalse(TransactionDetector.isLikelySpend("SGD 45.20 available credit"))
+        assertFalse(TransactionDetector.isLikelySpend("Statement ready: SGD 350 total"))
         assertFalse(TransactionDetector.isLikelySpend("Your OTP is 4521"))
+        assertFalse(TransactionDetector.isLikelySpend(""))
+        assertFalse(TransactionDetector.isLikelySpend("   "))
+    }
+
+    // ---- isLikelySpend: keywords match whole words, not substrings -------------------
+
+    @Test
+    fun keywords_match_whole_words_only() {
+        // "paid" must not fire on "unpaid"/"prepaid"
+        assertFalse(TransactionDetector.isLikelySpend("Unpaid bill of SGD 50"))
+        assertFalse(TransactionDetector.isLikelySpend("Prepaid balance of SGD 50 remaining"))
+        // sanity: the bare words still capture
+        assertTrue(TransactionDetector.isLikelySpend("Transfer of SGD 200 to your landlord"))
+        assertTrue(TransactionDetector.isLikelySpend("You paid SGD 50 at NTUC"))
+    }
+
+    @Test
+    fun transferred_is_captured_but_income_still_wins() {
+        // "transferred" is a spend signal (recall > precision under review-to-confirm), so an
+        // outgoing transfer is captured...
+        assertTrue(TransactionDetector.isLikelySpend("You transferred SGD 500 to John"))
+        // ...as is a bare incoming transfer with no income word (accepted false positive — one tap to dismiss).
+        assertTrue(TransactionDetector.isLikelySpend("SGD 200 transferred to your account"))
+        // ...but a genuine credit is still suppressed by the strong-income tier.
+        assertFalse(TransactionDetector.isLikelySpend("Salary of SGD 5000 transferred to your account"))
     }
 
     @Test

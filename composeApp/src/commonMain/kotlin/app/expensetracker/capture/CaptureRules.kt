@@ -21,20 +21,53 @@ object CaptureRules {
     )
 
     /**
-     * Words that signal money leaving the account (not a credit/refund). Matched on word
-     * boundaries, so inflections must be listed explicitly ("payment" does not cover "payments").
+     * Unambiguous outgoing-payment words. A notification containing one of these is treated as a
+     * spend even when weak income words (e.g. "cashback", "reward") also appear in the same text.
+     * Matched on word boundaries, so inflections must be listed explicitly ("charge" does not cover
+     * "charges"). "recharge"/"recharged" are spends in their own right (a substring bug used to
+     * capture them only via "charge").
      */
-    val spendKeywords: List<String> = listOf(
-        "spent", "debited", "debit", "paid", "payment", "payments", "purchase", "purchases",
-        "purchased", "charged", "charge", "charges", "txn", "transaction", "transactions",
-        "sent", "withdrawn", "withdrawal", "bought", "deducted", "transfer", "transferred",
-        "recharge", "recharged",
+    val strongSpendKeywords: List<String> = listOf(
+        "spent", "debited", "debit", "charged", "charge", "charges", "purchase", "purchases",
+        "purchased", "deducted", "withdrawn", "withdrawal", "bought", "recharge", "recharged",
     )
 
-    /** Words that mean money came IN — skipped, since this is a spends-only tracker. */
-    val incomeKeywords: List<String> = listOf(
-        "credited", "received", "refund", "refunded", "refunds", "cashback", "reversed",
-        "reversal", "salary", "deposit", "deposited", "deposits",
+    /**
+     * Spend-adjacent words that can also appear in income notifications. These lose to
+     * [strongIncomeKeywords] — e.g. "salary payment received" or "payment credited" → income.
+     * Both "transfer" and "transferred" are spend signals: real outgoing alerts say either "Own
+     * Funds Transfer … completed" or "You transferred …". Because capture is review-to-confirm (a
+     * false positive is one inbox dismiss, a miss is an untracked spend), we accept that a bare
+     * "X transferred to your account" with no income word gets captured; a genuine credit ("salary
+     * transferred to your account") is still suppressed by the strong-income tier.
+     */
+    val weakSpendKeywords: List<String> = listOf(
+        "paid", "payment", "payments", "transaction", "transactions", "txn", "sent",
+        "transfer", "transferred",
+    )
+
+    /**
+     * Strong income signals. These suppress [weakSpendKeywords] but NOT [strongSpendKeywords].
+     * Note: "cashback" is intentionally absent — it routinely appears in payment confirmations
+     * (e.g. Trust Bank appends cashback reward info). "deposit" is also absent; it is ambiguous
+     * (fixed-deposit placement = spend; salary deposit = income) and covered by "credited".
+     */
+    val strongIncomeKeywords: List<String> = listOf(
+        "credited", "received", "refund", "refunded", "refunds", "reversed", "reversal", "salary",
+    )
+
+    /**
+     * Phrases that cause immediate hard rejection — money definitely did not leave the account,
+     * regardless of what spend keywords are also present.
+     */
+    val blockPhrases: List<String> = listOf(
+        // OTP / step-up authentication flows
+        "one-time password", "one time password", "passcode", "otp",
+        "authenticate your", "tap here to verify", "tap to verify",
+        // Declined or failed — no money moved
+        "declined", "payment failed", "transaction failed", "transfer failed", "insufficient",
+        // Bill-due reminders — not a completed transaction
+        "payment due", "amount due", "minimum payment",
     )
 
     /**

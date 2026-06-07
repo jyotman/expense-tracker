@@ -18,12 +18,22 @@ data class CaptureAppsUiState(
     val selectedPackages: Set<String> = emptySet(),
     val searchQuery: String = "",
 ) {
-    val filtered: List<InstalledApp>
-        get() = if (searchQuery.isBlank()) apps
-                else apps.filter {
-                    it.label.contains(searchQuery, ignoreCase = true) ||
-                        it.packageName.contains(searchQuery, ignoreCase = true)
-                }
+    // Computed once per state instance (lazy) so a recomposition that reads filtered + both groups
+    // doesn't re-run the search filter three times over the full installed-app list.
+    val filtered: List<InstalledApp> by lazy {
+        if (searchQuery.isBlank()) apps
+        else apps.filter {
+            it.label.contains(searchQuery, ignoreCase = true) ||
+                it.packageName.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    private val partitioned: Pair<List<InstalledApp>, List<InstalledApp>> by lazy {
+        filtered.partition { it.packageName in selectedPackages }
+    }
+
+    val selectedApps: List<InstalledApp> get() = partitioned.first
+    val unselectedApps: List<InstalledApp> get() = partitioned.second
 }
 
 class CaptureAppsViewModel : ViewModel() {

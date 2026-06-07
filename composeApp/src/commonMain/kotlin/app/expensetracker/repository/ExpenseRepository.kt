@@ -47,6 +47,8 @@ class ExpenseRepository(
     /** Total number of stored expenses (used to warn before a currency change). */
     fun count(): Long = queries.countAll().executeAsOne()
 
+    fun observeCount(): Flow<Long> = queries.countAll().asFlow().mapToOne(dispatcher)
+
     fun add(
         amountMinor: Long,
         categoryId: Long?,

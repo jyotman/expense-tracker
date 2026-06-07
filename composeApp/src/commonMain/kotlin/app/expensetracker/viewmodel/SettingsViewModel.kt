@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val currencySymbol: String = "$",
@@ -19,6 +18,11 @@ data class SettingsUiState(
     val currencyCode: String? = null,
     /** Number of existing expenses — used to warn before a currency change. */
     val expenseCount: Long = 0,
+    /**
+     * Whether [expenseCount] reflects a real read from the DB yet. The count loads asynchronously,
+     * so the currency picker must not treat the initial 0 as "no expenses" and skip the warning.
+     */
+    val expenseCountLoaded: Boolean = false,
     val aiEnabled: Boolean = true,
     val captureEnabled: Boolean = false,
     val captureSupported: Boolean = false,
@@ -39,15 +43,18 @@ class SettingsViewModel : ViewModel() {
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
-        // count() is a blocking SQLite call; load it once on a background thread, then carry it
-        // across refreshes via prev (expense count can't change from the Settings screen).
-        launchIo { _state.update { it.copy(expenseCount = ServiceLocator.expenseRepository.count()) } }
+        launchIo {
+            ServiceLocator.expenseRepository.observeCount().collect { count ->
+                _state.update { it.copy(expenseCount = count, expenseCountLoaded = true) }
+            }
+        }
     }
 
     private fun read(prev: SettingsUiState?) = SettingsUiState(
         currencySymbol = settings.currencySymbol,
         currencyCode = settings.defaultCurrencyCode,
         expenseCount = prev?.expenseCount ?: 0L,
+        expenseCountLoaded = prev?.expenseCountLoaded ?: false,
         aiEnabled = settings.aiEnabled,
         captureEnabled = settings.notificationCaptureEnabled,
         captureSupported = PlatformCapabilities.notificationCaptureSupported,

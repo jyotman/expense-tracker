@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,11 +81,12 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
                         Text("Enable auto-capture", style = MaterialTheme.typography.titleMedium)
+                        // Switch reflects the user's intent (captureEnabled) so it can always be
+                        // toggled off; a missing access grant is surfaced by the warning below.
                         Switch(
                             checked = state.captureEnabled,
                             onCheckedChange = { on ->
                                 vm.setCaptureEnabled(on)
-                                // Switching on does nothing until access is granted — take them there now.
                                 if (on && !state.notificationAccessGranted) vm.openNotificationAccessSettings()
                             },
                         )
