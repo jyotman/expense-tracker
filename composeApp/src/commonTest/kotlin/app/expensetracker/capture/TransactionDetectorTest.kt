@@ -17,6 +17,20 @@ class TransactionDetectorTest {
     }
 
     @Test
+    fun ungrouped_large_amount_is_not_truncated_to_three_digits() {
+        // Regression: "SGD15000.00" used to match only "150" because the grouped branch greedily
+        // grabbed the first 3 digits and the alternation never tried the plain-number branch.
+        val dbs = "An Own Funds Transfer of SGD15000.00 from A/C ending 7328 to A/C ending 7596 " +
+            "on 09 Jun 16:46 (SGT) was completed. If unauthorised, call +65 63272265."
+        assertEquals(1_500_000L, TransactionDetector.extractAmountMinor(dbs))
+        assertEquals("SGD", TransactionDetector.extractCurrencyToken(dbs))
+        // Same number without separators and without a decimal part.
+        assertEquals(1_500_000L, TransactionDetector.extractAmountMinor("Paid SGD15000 to merchant"))
+        // The grouped form still works and is preferred when separators are present.
+        assertEquals(1_500_000L, TransactionDetector.extractAmountMinor("Paid SGD 15,000.00"))
+    }
+
+    @Test
     fun keeps_european_decimal_comma() {
         // The regex comment promises "EUR 12,50" — the cents must survive, not be dropped to €12.
         assertEquals(1250L, TransactionDetector.extractAmountMinor("EUR 12,50 spent at Cafe"))

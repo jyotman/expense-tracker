@@ -57,6 +57,7 @@ class ExpenseRepository(
         source: ExpenseSource,
         recurringRuleId: Long? = null,
         sourceNotificationText: String? = null,
+        sourceApp: String? = null,
     ): Long {
         // insert + last_insert_rowid must be atomic on one connection, else a concurrent writer
         // (e.g. the notification listener) can make lastInsertedId return the wrong row.
@@ -71,6 +72,7 @@ class ExpenseRepository(
                 source.name,
                 recurringRuleId,
                 sourceNotificationText,
+                sourceApp,
             )
             queries.lastInsertedId().executeAsOne()
         }
@@ -108,4 +110,5 @@ private fun DbExpense.toItem() = ExpenseItem(
     source = ExpenseSource.fromDb(source),
     recurringRuleId = recurringRuleId,
     sourceNotificationText = sourceNotificationText,
+    sourceApp = sourceApp,
 )

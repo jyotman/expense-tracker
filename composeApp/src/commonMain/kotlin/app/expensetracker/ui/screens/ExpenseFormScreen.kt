@@ -271,6 +271,7 @@ fun ExpenseFormScreen(
             // Where this expense came from — kept at the bottom as low-key reference.
             ExpenseSourceReference(
                 notificationText = state.sourceNotificationText,
+                sourceApp = state.sourceApp,
                 source = state.source,
                 isEdit = state.isEdit,
             )
@@ -308,9 +309,9 @@ fun ExpenseFormScreen(
  * manual add shows nothing (the absence of a notification is self-evident).
  */
 @Composable
-private fun ExpenseSourceReference(notificationText: String?, source: ExpenseSource, isEdit: Boolean) {
+private fun ExpenseSourceReference(notificationText: String?, sourceApp: String?, source: ExpenseSource, isEdit: Boolean) {
     when {
-        notificationText != null -> NotificationReferenceCard(notificationText)
+        notificationText != null -> NotificationReferenceCard(notificationText, sourceApp)
         isEdit -> {
             val label = if (source == ExpenseSource.WIDGET) "Added from widget" else "Added manually"
             Row(
@@ -331,10 +332,13 @@ private fun ExpenseSourceReference(notificationText: String?, source: ExpenseSou
     }
 }
 
-/** The captured notification behind an AUTO expense — a collapsed card that expands to the raw text. */
+/** The captured notification behind an AUTO expense — a collapsed card that expands to the raw text.
+ *  The header names the source app (e.g. "From DBS digibank") when known, falling back to a generic
+ *  label for older expenses captured before the app was recorded. */
 @Composable
-private fun NotificationReferenceCard(text: String) {
+private fun NotificationReferenceCard(text: String, sourceApp: String?) {
     var expanded by remember { mutableStateOf(false) }
+    val header = sourceApp?.takeIf { it.isNotBlank() }?.let { "From $it" } ?: "From notification"
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(12.dp),
@@ -345,7 +349,7 @@ private fun NotificationReferenceCard(text: String) {
                 Icons.Filled.Notifications, contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp),
             )
-            Text("From notification", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(header, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Collapse" else "Expand",

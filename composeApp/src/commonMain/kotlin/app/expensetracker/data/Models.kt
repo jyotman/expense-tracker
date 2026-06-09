@@ -49,6 +49,8 @@ data class ExpenseItem(
     val recurringRuleId: Long?,
     /** Original notification text (title + body) for AUTO expenses; null for manual/widget. */
     val sourceNotificationText: String? = null,
+    /** Label of the app that posted the originating notification (e.g. "DBS digibank"); null for manual/widget. */
+    val sourceApp: String? = null,
 )
 
 data class RecurringRuleItem(

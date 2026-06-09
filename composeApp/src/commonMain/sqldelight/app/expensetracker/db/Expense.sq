@@ -10,19 +10,22 @@ CREATE TABLE expense (
     recurringRuleId INTEGER,
     -- Snapshot of the originating notification (title + body) for AUTO expenses; NULL for manual/widget.
     -- Denormalised on purpose: captured_notification rows get pruned, so a join wouldn't be durable.
-    sourceNotificationText TEXT
+    sourceNotificationText TEXT,
+    -- Label of the app that posted the originating notification (e.g. "DBS digibank") for AUTO
+    -- expenses; NULL for manual/widget. Denormalised for the same durability reason as the text above.
+    sourceApp TEXT
 );
 
 CREATE INDEX expense_occurredAt ON expense(occurredAt);
 CREATE INDEX expense_categoryId ON expense(categoryId);
 
 insert:
-INSERT INTO expense (amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO expense (amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText, sourceApp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertWithId:
-INSERT INTO expense (id, amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO expense (id, amountMinor, categoryId, note, merchant, occurredAt, createdAt, source, recurringRuleId, sourceNotificationText, sourceApp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE expense

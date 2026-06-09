@@ -94,6 +94,8 @@ data class ExpenseFormState(
     val source: ExpenseSource = ExpenseSource.MANUAL,
     /** Original notification text for an AUTO expense, shown as a read-only reference; null otherwise. */
     val sourceNotificationText: String? = null,
+    /** App that posted the originating notification (e.g. "DBS digibank") for an AUTO expense; null otherwise. */
+    val sourceApp: String? = null,
     val saved: Boolean = false,
 ) {
     val isEdit: Boolean get() = expenseId != null
@@ -131,6 +133,7 @@ class ExpenseFormViewModel : ViewModel() {
             occurredAt = e.occurredAt,
             source = e.source,
             sourceNotificationText = e.sourceNotificationText,
+            sourceApp = e.sourceApp,
             recurringRuleId = e.recurringRuleId,
             // Editing a saved expense — never an AI suggestion, so clear any leftover loading/badges.
             recurring = false,
@@ -171,6 +174,7 @@ class ExpenseFormViewModel : ViewModel() {
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
                 sourceNotificationText = notifText,
+                sourceApp = item.appLabel,
                 aiAssist = AiAssist.Loading,
                 fxSuggestion = FxSuggestion.None,
             )
@@ -188,6 +192,7 @@ class ExpenseFormViewModel : ViewModel() {
                 occurredAt = item.postedAt,
                 source = ExpenseSource.AUTO,
                 sourceNotificationText = notifText,
+                sourceApp = item.appLabel,
                 aiAssist = AiAssist.Inactive,
                 fxSuggestion = if (differs) FxSuggestion.Loading else FxSuggestion.None,
             )
@@ -361,6 +366,7 @@ class ExpenseFormViewModel : ViewModel() {
                         createdAt = now,
                         source = s.source,
                         sourceNotificationText = s.sourceNotificationText,
+                        sourceApp = s.sourceApp,
                     )
                     s.capturedId?.let { cid ->
                         captured.linkExpense(cid, newId)

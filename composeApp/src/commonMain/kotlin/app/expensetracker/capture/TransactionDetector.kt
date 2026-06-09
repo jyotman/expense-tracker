@@ -14,6 +14,11 @@ object TransactionDetector {
     // or code on either side. The decimal part accepts '.' or ',' so European cents ("12,50") survive
     // into Money.parseToMinor. Leading token may be a symbol or a code (e.g. "INR 500"); trailing is
     // a code (e.g. "500 INR"). Longer tokens are tried first so "Rs." beats "Rs" and "S$" beats "$".
+    //
+    // The first num branch is the *grouped* form and requires at least one thousands separator
+    // (the `+`); without it, a plain run like "15000" would match only its first 3 digits ("150")
+    // and the alternation would never reach the second branch — so the second branch handles the
+    // ungrouped form ("15000", "15000.00") as a whole.
     private fun alternation(tokens: List<String>): String =
         tokens.sortedByDescending { it.length }.joinToString("|") { it.escapeRegex() }
 
@@ -21,7 +26,7 @@ object TransactionDetector {
         val leading = alternation(CaptureRules.currencySymbols + CaptureRules.currencyCodes)
         val trailing = alternation(CaptureRules.currencyCodes)
         Regex(
-            """(?:(?<sym>$leading)\s*)?(?<num>\d{1,3}(?:[,\s]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?<sym2>$trailing))?""",
+            """(?:(?<sym>$leading)\s*)?(?<num>\d{1,3}(?:[,\s]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?<sym2>$trailing))?""",
             RegexOption.IGNORE_CASE,
         )
     }

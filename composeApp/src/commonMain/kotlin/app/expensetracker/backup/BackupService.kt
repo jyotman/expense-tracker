@@ -36,6 +36,7 @@ data class ExpenseDto(
     val source: String,
     val recurringRuleId: Long?,
     val sourceNotificationText: String? = null,
+    val sourceApp: String? = null,
 )
 
 @Serializable
@@ -62,7 +63,7 @@ object BackupService {
             CategoryDto(it.id, it.name, it.iconKey, it.colorHex, it.sortOrder, it.isArchived)
         }
         val expenses = db.expenseQueries.selectAllForExport().executeAsList().map {
-            ExpenseDto(it.id, it.amountMinor, it.categoryId, it.note, it.merchant, it.occurredAt, it.createdAt, it.source, it.recurringRuleId, it.sourceNotificationText)
+            ExpenseDto(it.id, it.amountMinor, it.categoryId, it.note, it.merchant, it.occurredAt, it.createdAt, it.source, it.recurringRuleId, it.sourceNotificationText, it.sourceApp)
         }
         val recurring = db.recurringRuleQueries.selectAll().executeAsList().map {
             RecurringDto(it.id, it.amountMinor, it.categoryId, it.note, it.merchant, it.intervalUnit, it.intervalCount, it.startAt, it.endAt, it.lastGeneratedAt, it.isActive)
@@ -95,7 +96,7 @@ object BackupService {
             data.expenses.forEach {
                 db.expenseQueries.insertWithId(
                     it.id, it.amountMinor, it.categoryId, it.note, it.merchant,
-                    it.occurredAt, it.createdAt, it.source, it.recurringRuleId, it.sourceNotificationText,
+                    it.occurredAt, it.createdAt, it.source, it.recurringRuleId, it.sourceNotificationText, it.sourceApp,
                 )
             }
         }
