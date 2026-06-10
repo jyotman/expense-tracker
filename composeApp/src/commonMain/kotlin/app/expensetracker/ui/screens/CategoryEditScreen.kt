@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.expensetracker.data.CategoryItem
@@ -65,7 +68,7 @@ fun CategoryEditScreen(
                 title = { Text(if (existing != null) "Edit category" else "New category") },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.Close, contentDescription = "Cancel")
                     }
                 },
                 actions = {
@@ -94,7 +97,10 @@ fun CategoryEditScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.padding(padding).padding(horizontal = 20.dp),
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             OutlinedTextField(
@@ -127,7 +133,7 @@ fun CategoryEditScreen(
                 }
             }
 
-            Text("Colour", style = MaterialTheme.typography.labelLarge)
+            Text("Color", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 DefaultCategories.palette.forEach { hex ->
                     val selected = hex == colorHex
@@ -144,14 +150,27 @@ fun CategoryEditScreen(
                             .clickable { colorHex = hex },
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        if (selected) {
+                            // Black or white check, whichever reads against the swatch colour.
+                            val checkTint = if (colorFromHex(hex).luminance() > 0.5f) Color.Black else Color.White
+                            Icon(Icons.Filled.Check, contentDescription = null, tint = checkTint, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
 
             if (existing != null) {
-                OutlinedButton(onClick = { archived = !archived; vm.setArchived(existing.id, archived) }, modifier = Modifier.fillMaxWidth()) {
+                // Toggles local state only — like every other field, it's applied on Save.
+                OutlinedButton(onClick = { archived = !archived }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (archived) "Unarchive category" else "Archive category")
+                }
+                if (archived != existing.isArchived) {
+                    Text(
+                        if (archived) "Will be hidden from new expenses after you save."
+                        else "Will be available again after you save.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

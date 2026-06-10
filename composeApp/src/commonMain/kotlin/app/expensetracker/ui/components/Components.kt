@@ -1,6 +1,7 @@
 package app.expensetracker.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.expensetracker.data.CategoryItem
 import app.expensetracker.data.MonthPeriod
@@ -37,7 +39,10 @@ fun MonthSelector(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
+    onToday: (() -> Unit)? = null,
 ) {
+    // When browsing a past/future month, the label becomes a tap target to jump back to today.
+    val isCurrent = period == MonthPeriod.current()
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -46,11 +51,24 @@ fun MonthSelector(
         IconButton(onClick = onPrev) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
         }
+        val labelModifier = if (onToday != null && !isCurrent) {
+            Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onToday)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        } else {
+            Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        }
         Text(
             text = period.label(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp),
+            color = if (onToday != null && !isCurrent) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            modifier = labelModifier,
         )
         IconButton(onClick = onNext) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
@@ -94,11 +112,12 @@ fun EmptyState(
             tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(48.dp),
         )
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         Text(
             subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

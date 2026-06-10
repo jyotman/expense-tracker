@@ -22,6 +22,8 @@ data class BackupUiState(
     val lastBackupMillis: Long = 0,
     val busy: Boolean = false,
     val message: String? = null,
+    /** Whether [message] reports a failure (drives its colour in the UI). */
+    val messageIsError: Boolean = false,
 )
 
 class BackupViewModel : ViewModel() {
@@ -41,9 +43,9 @@ class BackupViewModel : ViewModel() {
             Backup.export(payload, suggestedName(now))
                 .onSuccess {
                     settings.lastBackupAtMillis = now.toEpochMilliseconds()
-                    _state.value = _state.value.copy(busy = false, lastBackupMillis = now.toEpochMilliseconds(), message = "Saved “$it”")
+                    _state.value = _state.value.copy(busy = false, lastBackupMillis = now.toEpochMilliseconds(), message = "Saved “$it”", messageIsError = false)
                 }
-                .onFailure { _state.value = _state.value.copy(busy = false, message = it.message ?: "Export cancelled") }
+                .onFailure { fail(it, "Export failed") }
         }
     }
 
@@ -54,11 +56,21 @@ class BackupViewModel : ViewModel() {
             Backup.import()
                 .onSuccess { payload ->
                     runCatching { BackupService.restore(payload) }
-                        .onSuccess { _state.value = _state.value.copy(busy = false, message = "Restored — reopen the tabs to see your data") }
-                        .onFailure { _state.value = _state.value.copy(busy = false, message = "That file wasn't a valid Expense Tracker backup") }
+                        .onSuccess { _state.value = _state.value.copy(busy = false, message = "Restored — reopen the tabs to see your data", messageIsError = false) }
+                        .onFailure { _state.value = _state.value.copy(busy = false, message = "That file wasn't a valid Expense Tracker backup", messageIsError = true) }
                 }
-                .onFailure { _state.value = _state.value.copy(busy = false, message = it.message ?: "Import cancelled") }
+                .onFailure { fail(it, "Import failed") }
         }
+    }
+
+    /** Backing out of the system file picker isn't an error — clear busy and stay quiet. */
+    private fun fail(e: Throwable, fallback: String) {
+        val cancelled = e.message == "Cancelled"
+        _state.value = _state.value.copy(
+            busy = false,
+            message = if (cancelled) null else (e.message ?: fallback),
+            messageIsError = !cancelled,
+        )
     }
 
     private fun suggestedName(now: Instant): String {

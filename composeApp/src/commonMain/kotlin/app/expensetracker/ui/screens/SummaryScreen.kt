@@ -41,6 +41,7 @@ fun SummaryScreen(onEditExpense: (Long) -> Unit) {
             period = state.period,
             onPrev = vm::showPrevMonth,
             onNext = vm::showNextMonth,
+            onToday = vm::showCurrentMonth,
             modifier = Modifier.padding(top = 8.dp),
         )
 
@@ -63,8 +64,8 @@ fun SummaryScreen(onEditExpense: (Long) -> Unit) {
         if (state.breakdown.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.Savings,
-                title = "No spending yet",
-                subtitle = "Tap “Expense” to log your first one, or let auto-capture do it for you.",
+                title = "No spending this month",
+                subtitle = "Tap “Add expense” to log one, or let auto-capture do it for you.",
                 modifier = Modifier.padding(top = 32.dp),
             )
         } else {

@@ -28,6 +28,7 @@ abstract class PeriodScopedViewModel : ViewModel() {
 
     fun showPrevMonth() = PeriodController.prev()
     fun showNextMonth() = PeriodController.next()
+    fun showCurrentMonth() = PeriodController.reset()
     fun setPeriod(period: MonthPeriod) = PeriodController.set(period)
 }
 

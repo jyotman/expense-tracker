@@ -34,13 +34,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -108,6 +111,7 @@ fun ExpenseFormScreen(
     LaunchedEffect(state.saved) { if (state.saved) onDone() }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val tz = TimeZone.currentSystemDefault()
 
     Scaffold(
@@ -175,7 +179,9 @@ fun ExpenseFormScreen(
             }
 
             OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Date: ${DateFormat.full(state.occurredAt)}")
+                Icon(Icons.Filled.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(DateFormat.full(state.occurredAt))
             }
 
             OutlinedTextField(
@@ -258,13 +264,14 @@ fun ExpenseFormScreen(
 
             if (state.isEdit) {
                 Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = vm::delete,
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Filled.Delete, contentDescription = null)
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Delete")
+                    Text("Delete expense")
                 }
             }
 
@@ -276,6 +283,22 @@ fun ExpenseFormScreen(
                 isEdit = state.isEdit,
             )
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete this expense?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirm = false; vm.delete() }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            },
+        )
     }
 
     if (showDatePicker) {

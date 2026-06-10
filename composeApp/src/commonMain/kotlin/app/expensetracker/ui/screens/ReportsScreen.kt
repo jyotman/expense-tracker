@@ -3,6 +3,7 @@ package app.expensetracker.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,6 +68,7 @@ fun ReportsScreen() {
             period = state.period,
             onPrev = { PeriodController.prev() },
             onNext = { PeriodController.next() },
+            onToday = { PeriodController.reset() },
             modifier = Modifier.padding(top = 16.dp),
         )
         Text(
@@ -80,7 +82,7 @@ fun ReportsScreen() {
             EmptyState(
                 icon = Icons.Filled.BarChart,
                 title = "No data for this month",
-                subtitle = "Spend some money (sadly) and the report will fill in.",
+                subtitle = "Expenses logged in this month will show up in the breakdown.",
                 modifier = Modifier.padding(top = 24.dp),
             )
         } else {
@@ -110,6 +112,7 @@ fun ReportsScreen() {
                 }
             }
         }
+        Spacer(Modifier.height(24.dp))
     }
 }
 

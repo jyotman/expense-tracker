@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Autorenew
@@ -74,11 +75,15 @@ fun SettingsScreen(
         ListItem(
             leadingContent = { Icon(Icons.Filled.Category, null) },
             headlineContent = { Text("Categories") },
+            supportingContent = { Text("Add, edit or archive your categories") },
+            trailingContent = { NavChevron() },
             modifier = Modifier.clickable(onClick = onOpenCategories),
         )
         ListItem(
             leadingContent = { Icon(Icons.Filled.Autorenew, null) },
             headlineContent = { Text("Recurring expenses") },
+            supportingContent = { Text("Rent, subscriptions and other repeats") },
+            trailingContent = { NavChevron() },
             modifier = Modifier.clickable(onClick = onOpenRecurring),
         )
 
@@ -167,7 +172,8 @@ fun SettingsScreen(
         ListItem(
             leadingContent = { Icon(Icons.Filled.CloudUpload, null) },
             headlineContent = { Text("Backup & restore") },
-            supportingContent = { Text("Export or import your data to any file location") },
+            supportingContent = { Text("Export or import your data as a file") },
+            trailingContent = { NavChevron() },
             modifier = Modifier.clickable(onClick = onOpenBackup),
         )
     }
@@ -221,6 +227,17 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { pendingCurrency = null }) { Text("Cancel") } },
         )
     }
+}
+
+/** Small muted chevron marking a row that navigates to another screen. */
+@Composable
+private fun NavChevron() {
+    Icon(
+        Icons.AutoMirrored.Filled.ArrowForwardIos,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(16.dp),
+    )
 }
 
 @Composable

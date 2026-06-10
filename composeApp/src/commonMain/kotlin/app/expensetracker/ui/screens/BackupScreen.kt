@@ -4,9 +4,12 @@ package app.expensetracker.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileDownload
@@ -73,16 +76,23 @@ fun BackupScreen(onBack: () -> Unit) {
             }
 
             Button(onClick = vm::exportNow, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.FileUpload, contentDescription = null)
-                Text("  Export backup")
+                Icon(Icons.Filled.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Export backup")
             }
             OutlinedButton(onClick = vm::importNow, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.FileDownload, contentDescription = null)
-                Text("  Import / restore")
+                Icon(Icons.Filled.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Import / restore")
             }
 
             if (state.busy) CircularProgressIndicator()
-            state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            state.message?.let {
+                Text(
+                    it,
+                    color = if (state.messageIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                )
+            }
 
             Text(
                 "Your phone also backs this app up automatically to your account, so a reinstall or " +

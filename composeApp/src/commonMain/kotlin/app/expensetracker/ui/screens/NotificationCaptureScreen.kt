@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -88,12 +89,15 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
                             },
                         )
                     }
-                    val statusText = when {
-                        !state.captureEnabled -> "Turn on, then grant notification access below."
-                        state.notificationAccessGranted -> "✓ Notification access granted — you're all set."
-                        else -> "⚠ Notification access not granted yet."
+                    val (statusText, statusColor) = when {
+                        !state.captureEnabled ->
+                            "Turn on, then grant notification access below." to MaterialTheme.colorScheme.onSurfaceVariant
+                        state.notificationAccessGranted ->
+                            "✓ Notification access granted — you're all set." to MaterialTheme.colorScheme.primary
+                        else ->
+                            "⚠ Notification access not granted yet — tap the button below." to MaterialTheme.colorScheme.error
                     }
-                    Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
                 }
             }
 
@@ -121,7 +125,14 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
                 ListItem(
                     headlineContent = { Text("Apps to monitor") },
                     supportingContent = { Text("Choose which apps' notifications to watch") },
-                    trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null) },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
                     modifier = Modifier.clickable(onClick = onOpenCaptureApps),
                 )
             }

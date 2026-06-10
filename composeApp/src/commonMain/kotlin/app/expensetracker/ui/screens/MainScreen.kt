@@ -67,7 +67,7 @@ fun MainScreen(
                                 }
                             },
                         ) {
-                            Icon(Icons.Filled.Inbox, contentDescription = "Detected transactions")
+                            Icon(Icons.Filled.Inbox, contentDescription = "Inbox")
                         }
                     }
                 },
@@ -90,7 +90,7 @@ fun MainScreen(
                 ExtendedFloatingActionButton(
                     onClick = onAddExpense,
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("Expense") },
+                    text = { Text("Add expense") },
                 )
             }
         },

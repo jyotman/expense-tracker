@@ -50,6 +50,7 @@ fun TransactionsScreen(onEditExpense: (Long) -> Unit) {
             period = state.period,
             onPrev = vm::showPrevMonth,
             onNext = vm::showNextMonth,
+            onToday = vm::showCurrentMonth,
             modifier = Modifier.padding(top = 8.dp),
         )
         Row(
@@ -71,8 +72,8 @@ fun TransactionsScreen(onEditExpense: (Long) -> Unit) {
         if (state.rows.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.ReceiptLong,
-                title = "Nothing logged",
-                subtitle = "Expenses you add this month will show up here.",
+                title = "No expenses this month",
+                subtitle = "Everything you log or capture in this month shows up here.",
                 modifier = Modifier.padding(top = 32.dp),
             )
             return
