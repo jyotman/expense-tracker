@@ -26,9 +26,8 @@ object NotificationCaptureProcessor {
         val settings = ServiceLocator.settings
         if (!settings.notificationCaptureEnabled) return
 
-        val allow = if (!settings.capturePackagesConfigured) CaptureRules.defaultPackages
-                    else settings.capturePackages
-        if (packageName !in allow) return
+        // Only apps the user has explicitly chosen are watched; an empty list captures nothing.
+        if (packageName !in settings.capturePackages) return
 
         val combined = listOf(title, text).filter { it.isNotBlank() }.joinToString(" — ")
         if (!TransactionDetector.isLikelySpend(combined)) return

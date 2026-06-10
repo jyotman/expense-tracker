@@ -3,7 +3,6 @@ package app.expensetracker.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.expensetracker.ServiceLocator
-import app.expensetracker.capture.CaptureRules
 import app.expensetracker.platform.InstalledApp
 import app.expensetracker.platform.PlatformCapabilities
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,17 +44,10 @@ class CaptureAppsViewModel : ViewModel() {
         // PackageManager calls are blocking I/O — use the platform IO dispatcher.
         viewModelScope.launch(PlatformCapabilities.ioDispatcher) {
             val installed = PlatformCapabilities.getInstalledApps()
-            val installedPackages = installed.map { it.packageName }.toSet()
-            var selected = settings.capturePackages
-            if (!settings.capturePackagesConfigured) {
-                // First open: pre-select whichever defaults are on this device, then mark
-                // configured so the processor stops using the built-in fallback and the
-                // seeding coroutine doesn't re-run on every screen visit.
-                selected = CaptureRules.defaultPackages.intersect(installedPackages)
-                settings.capturePackages = selected
-                settings.capturePackagesConfigured = true
+            // No apps are watched by default — the user picks them explicitly here.
+            _state.update {
+                it.copy(loading = false, apps = installed, selectedPackages = settings.capturePackages)
             }
-            _state.update { it.copy(loading = false, apps = installed, selectedPackages = selected) }
         }
     }
 
@@ -66,7 +58,6 @@ class CaptureAppsViewModel : ViewModel() {
             val s = current.selectedPackages
             val updated = if (packageName in s) s - packageName else s + packageName
             settings.capturePackages = updated
-            settings.capturePackagesConfigured = true
             current.copy(selectedPackages = updated)
         }
     }

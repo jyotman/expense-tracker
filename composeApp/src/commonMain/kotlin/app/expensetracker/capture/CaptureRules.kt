@@ -83,20 +83,4 @@ object CaptureRules {
         "win", "free", "congratulations", "exclusive", "discover more", "shop now",
         "limited time", "don't miss", "t&c", "t&cs",
     )
-
-    /** Default bank / wallet / card app packages worth listening to. Extended by user settings. */
-    val defaultPackages: Set<String> = setOf(
-        "com.google.android.apps.nbu.paisa.user", // Google Pay (India)
-        "com.google.android.apps.walletnfcrel",   // Google Wallet
-        "com.revolut.revolut",
-        "com.phonepe.app",
-        "net.one97.paytm",
-        "com.paypal.android.p2pmobile",
-        "com.wise.android",
-        "com.monzo.android",
-        "com.starlingbank.android",
-        "com.chase.sig.android",
-        "com.americanexpress.android.acctsvcs.us",
-        "com.infonow.bofa",
-    )
 }

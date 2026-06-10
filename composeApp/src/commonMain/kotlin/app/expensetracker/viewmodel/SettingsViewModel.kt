@@ -26,6 +26,8 @@ data class SettingsUiState(
     val aiEnabled: Boolean = true,
     val captureEnabled: Boolean = false,
     val captureSupported: Boolean = false,
+    /** How many apps the user has chosen to watch — 0 means auto-capture has nothing to read. */
+    val captureAppCount: Int = 0,
     val notificationAccessGranted: Boolean = false,
     val lastBackupAtMillis: Long = 0,
     /** Result of the last on-device AI probe; UNAVAILABLE up-front when the device can't run it. */
@@ -58,6 +60,7 @@ class SettingsViewModel : ViewModel() {
         aiEnabled = settings.aiEnabled,
         captureEnabled = settings.notificationCaptureEnabled,
         captureSupported = PlatformCapabilities.notificationCaptureSupported,
+        captureAppCount = settings.capturePackages.size,
         notificationAccessGranted = PlatformCapabilities.isNotificationAccessGranted(),
         lastBackupAtMillis = settings.lastBackupAtMillis,
         // Devices that can't possibly run on-device AI are known-unavailable without a probe.
