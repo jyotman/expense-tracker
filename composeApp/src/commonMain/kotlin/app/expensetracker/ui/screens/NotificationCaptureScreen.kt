@@ -5,7 +5,6 @@ package app.expensetracker.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,9 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -34,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -50,8 +47,15 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
     val state by vm.state.collectAsState()
     var showHelp by remember { mutableStateOf(false) }
     // Re-read the system grant + chosen-app count every time we return here (e.g. from the
-    // system access screen or the app picker), so the warning below stays accurate.
+    // system access screen or the app picker), so the setup rows below stay accurate.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
+
+    // Enabling without access is pointless, so flipping the master toggle on jumps straight to the
+    // system access screen; the access row then reflects the result on return.
+    val onToggleCapture: (Boolean) -> Unit = { on ->
+        vm.setCaptureEnabled(on)
+        if (on && !state.notificationAccessGranted) vm.openNotificationAccessSettings()
+    }
 
     Scaffold(
         topBar = {
@@ -76,64 +80,118 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
 
         Column(
             modifier = Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text(
-                "Log expenses automatically",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                "Turn the payment alerts from your bank and wallet apps into expenses you can review — " +
-                    "nothing is saved without your tap, and nothing leaves your phone.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Log expenses automatically",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Expense Tracker turns payment alerts from your chosen apps into expenses in your " +
+                        "inbox — you confirm each one, and nothing leaves your phone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
+            // One grouped card: the master switch, then the two setup steps it depends on.
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Enable auto-capture", style = MaterialTheme.typography.titleMedium)
-                        // Switch reflects the user's intent (captureEnabled) so it can always be
-                        // toggled off; a missing access grant is surfaced by the status below.
-                        Switch(
-                            checked = state.captureEnabled,
-                            onCheckedChange = { on ->
-                                vm.setCaptureEnabled(on)
-                                if (on && !state.notificationAccessGranted) vm.openNotificationAccessSettings()
-                            },
-                        )
+                Column(Modifier.fillMaxWidth()) {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text("Auto-capture") },
+                        supportingContent = { Text(if (state.captureEnabled) "On" else "Off") },
+                        trailingContent = {
+                            Switch(checked = state.captureEnabled, onCheckedChange = onToggleCapture)
+                        },
+                        modifier = Modifier.clickable { onToggleCapture(!state.captureEnabled) },
+                    )
+
+                    HorizontalDivider()
+
+                    val (accessText, accessColor) = when {
+                        state.notificationAccessGranted -> "Granted" to MaterialTheme.colorScheme.primary
+                        state.captureEnabled -> "Required — tap to allow" to MaterialTheme.colorScheme.error
+                        else -> "Not granted" to MaterialTheme.colorScheme.onSurfaceVariant
                     }
-                    val (statusText, statusColor) = when {
-                        !state.captureEnabled ->
-                            "Turn on, then grant notification access below." to MaterialTheme.colorScheme.onSurfaceVariant
-                        state.notificationAccessGranted ->
-                            "✓ Notification access granted — you're all set." to MaterialTheme.colorScheme.primary
-                        else ->
-                            "⚠ Notification access not granted yet — tap the button below." to MaterialTheme.colorScheme.error
-                    }
-                    Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                    SetupRow(
+                        headline = "Notification access",
+                        supporting = accessText,
+                        supportingColor = accessColor,
+                        warn = false,
+                        enabled = state.captureEnabled,
+                        onClick = vm::openNotificationAccessSettings,
+                    )
+
+                    HorizontalDivider()
+
+                    val noApps = state.captureEnabled && state.captureAppCount == 0
+                    SetupRow(
+                        headline = "Apps to monitor",
+                        supporting = when {
+                            noApps -> "None chosen yet — tap to pick the apps to watch"
+                            state.captureAppCount > 0 ->
+                                "${state.captureAppCount} app${if (state.captureAppCount == 1) "" else "s"} selected"
+                            else -> "Choose which apps' alerts to watch"
+                        },
+                        supportingColor = if (noApps) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        warn = noApps,
+                        enabled = state.captureEnabled,
+                        onClick = onOpenCaptureApps,
+                    )
                 }
             }
-
-            Button(
-                onClick = vm::openNotificationAccessSettings,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (state.notificationAccessGranted) "Manage notification access" else "Grant notification access")
-            }
-
-            AppsToMonitorCard(
-                captureEnabled = state.captureEnabled,
-                appCount = state.captureAppCount,
-                onClick = onOpenCaptureApps,
-            )
         }
     }
+}
+
+/**
+ * A tappable setup row inside the card. When [warn] is set (a required step the user hasn't done
+ * yet) the row is tinted with the error container so it stands out without a separate alert block.
+ * When [enabled] is false (auto-capture off, so the step is irrelevant) the row is greyed out and
+ * non-interactive.
+ */
+@Composable
+private fun SetupRow(
+    headline: String,
+    supporting: String,
+    supportingColor: Color,
+    warn: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val disabled = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    ListItem(
+        colors = ListItemDefaults.colors(
+            containerColor = if (warn) MaterialTheme.colorScheme.errorContainer else Color.Transparent,
+            headlineColor = when {
+                !enabled -> disabled
+                warn -> MaterialTheme.colorScheme.onErrorContainer
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+        ),
+        headlineContent = { Text(headline) },
+        supportingContent = { Text(supporting, color = if (enabled) supportingColor else disabled) },
+        trailingContent = {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = when {
+                    !enabled -> disabled
+                    warn -> MaterialTheme.colorScheme.onErrorContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(16.dp),
+            )
+        },
+        modifier = if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
+    )
 }
 
 /**
@@ -170,49 +228,4 @@ private fun HowItWorksSheet() {
 @Composable
 private fun InfoLine(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-/**
- * The "Apps to monitor" entry point. Turns into a highlighted warning when auto-capture is on but
- * the user hasn't chosen any apps yet — otherwise nothing would ever be captured and they might not
- * realise they need to opt apps in. Shows the chosen count once at least one app is selected.
- */
-@Composable
-private fun AppsToMonitorCard(captureEnabled: Boolean, appCount: Int, onClick: () -> Unit) {
-    val warn = captureEnabled && appCount == 0
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = if (warn) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-        } else {
-            CardDefaults.cardColors()
-        },
-    ) {
-        ListItem(
-            colors = ListItemDefaults.colors(
-                containerColor = Color.Transparent,
-                headlineColor = if (warn) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
-                supportingColor = if (warn) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            headlineContent = { Text("Apps to monitor") },
-            supportingContent = {
-                Text(
-                    when {
-                        warn -> "⚠ No apps chosen yet — pick the apps whose payment alerts you want captured, or nothing will be tracked."
-                        appCount > 0 -> "$appCount app${if (appCount == 1) "" else "s"} selected"
-                        else -> "Choose which apps' notifications to watch"
-                    },
-                )
-            },
-            trailingContent = {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    tint = if (warn) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-            },
-            modifier = Modifier.clickable(onClick = onClick),
-        )
-    }
 }
