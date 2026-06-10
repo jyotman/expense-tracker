@@ -133,8 +133,15 @@ fun SettingsScreen(
                         )
                     }
                 },
-                // Tap to download (DOWNLOADABLE) or re-probe; disabled while busy.
-                modifier = if (!aiUnavailable && !state.aiChecking && !aiDownloading) {
+                // The row is tappable only when a tap actually does something — probe the device
+                // (status unknown) or kick off the model download. When the model is ready,
+                // unavailable, or busy, only the toggle is interactive; a whole-row ripple that
+                // leads nowhere is just confusing.
+                modifier = if (
+                    !state.aiChecking && !aiDownloading &&
+                    (state.aiAvailability == AiAvailability.UNKNOWN ||
+                        state.aiAvailability == AiAvailability.DOWNLOADABLE)
+                ) {
                     Modifier.clickable { vm.checkAiAvailability() }
                 } else {
                     Modifier

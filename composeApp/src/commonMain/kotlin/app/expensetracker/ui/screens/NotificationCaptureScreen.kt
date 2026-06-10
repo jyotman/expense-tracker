@@ -2,7 +2,6 @@
 
 package app.expensetracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,8 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -26,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -50,6 +48,7 @@ import app.expensetracker.viewmodel.SettingsViewModel
 fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit) {
     val vm: SettingsViewModel = viewModel { SettingsViewModel() }
     val state by vm.state.collectAsState()
+    var showHelp by remember { mutableStateOf(false) }
     // Re-read the system grant + chosen-app count every time we return here (e.g. from the
     // system access screen or the app picker), so the warning below stays accurate.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
@@ -63,9 +62,18 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showHelp = true }) {
+                        Icon(Icons.Outlined.Info, contentDescription = "How auto-capture works")
+                    }
+                },
             )
         },
     ) { padding ->
+        if (showHelp) {
+            ModalBottomSheet(onDismissRequest = { showHelp = false }) { HowItWorksSheet() }
+        }
+
         Column(
             modifier = Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -81,8 +89,6 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            HowItWorksCard()
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,53 +136,40 @@ fun NotificationCaptureScreen(onBack: () -> Unit, onOpenCaptureApps: () -> Unit)
     }
 }
 
-/** Collapsible explainer — keeps the longer "how/why/privacy" copy off the screen until tapped. */
+/**
+ * The "how/why/privacy" explainer, shown in a bottom sheet from the app bar's info icon — mirrors
+ * the picker's help sheet so both capture screens reveal detail the same way.
+ */
 @Composable
-private fun HowItWorksCard() {
-    var expanded by remember { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
-            ListItem(
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = {
-                    Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                },
-                headlineContent = { Text("How it works") },
-                trailingContent = {
-                    Icon(
-                        if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
-                    )
-                },
-                modifier = Modifier.clickable { expanded = !expanded },
-            )
-            AnimatedVisibility(visible = expanded) {
-                Column(
-                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    InfoLine(
-                        "Expense Tracker reads the payment alerts your chosen apps post, picks out the amount " +
-                            "and merchant right on your phone, and drops each one in your inbox. You tap to " +
-                            "confirm, and a category is suggested for you on the spot.",
-                    )
-                    InfoLine(
-                        "It uses a sensitive permission, so it only looks at notifications that read like a " +
-                            "payment and ignores everything else. Nothing is ever sent off your device.",
-                    )
-                    InfoLine(
-                        "Even if Expense Tracker's own alerts are turned off, every detected payment still " +
-                            "lands in your in-app inbox — so nothing is missed.",
-                    )
-                }
-            }
-        }
+private fun HowItWorksSheet() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            "How auto-capture works",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        InfoLine(
+            "Expense Tracker reads the payment alerts your chosen apps post, picks out the amount " +
+                "and merchant right on your phone, and drops each one in your inbox. You tap to " +
+                "confirm, and a category is suggested for you on the spot.",
+        )
+        InfoLine(
+            "It uses a sensitive permission, so it only looks at notifications that read like a " +
+                "payment and ignores everything else. Nothing is ever sent off your device.",
+        )
+        InfoLine(
+            "Even if Expense Tracker's own alerts are turned off, every detected payment still " +
+                "lands in your in-app inbox — so nothing is missed.",
+        )
     }
 }
 
 @Composable
 private fun InfoLine(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /**
