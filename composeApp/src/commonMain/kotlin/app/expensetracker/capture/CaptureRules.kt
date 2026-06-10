@@ -20,15 +20,35 @@ object CaptureRules {
         "INR", "USD", "SGD", "EUR", "GBP", "AED", "SAR", "JPY", "CNY", "AUD", "CAD", "CHF", "HKD",
     )
 
-    /** Words that signal money leaving the account (not a credit/refund). */
+    /**
+     * Words that signal money leaving the account (not a credit/refund). Matched on word
+     * boundaries, so inflections must be listed explicitly ("payment" does not cover "payments").
+     */
     val spendKeywords: List<String> = listOf(
-        "spent", "debited", "debit", "paid", "payment", "purchase", "charged", "charge",
-        "txn", "transaction", "sent", "withdrawn", "bought", "deducted",
+        "spent", "debited", "debit", "paid", "payment", "payments", "purchase", "purchases",
+        "purchased", "charged", "charge", "charges", "txn", "transaction", "transactions",
+        "sent", "withdrawn", "withdrawal", "bought", "deducted", "transfer", "transferred",
+        "recharge", "recharged",
     )
 
     /** Words that mean money came IN — skipped, since this is a spends-only tracker. */
     val incomeKeywords: List<String> = listOf(
-        "credited", "received", "refund", "refunded", "cashback", "reversed", "salary", "deposit",
+        "credited", "received", "refund", "refunded", "refunds", "cashback", "reversed",
+        "reversal", "salary", "deposit", "deposited", "deposits",
+    )
+
+    /**
+     * Marketing words that flag a notification as likely promotional. Banks post promos from the
+     * same package as transaction alerts, and promo copy pairs numbers with transactional words
+     * ("...bonus miles on every purchase"). When one of these appears and the detected amount has
+     * no currency marker, the number is promo math ("500 bonus miles", "25% off"), not a payment.
+     * A currency-tagged amount still counts — real alerts sometimes carry rewards footers.
+     */
+    val promoKeywords: List<String> = listOf(
+        "offer", "offers", "bonus", "discount", "miles", "reward", "rewards", "points",
+        "voucher", "coupon", "promo", "promotion", "sale", "deal", "deals", "earn", "earned",
+        "win", "free", "congratulations", "exclusive", "discover more", "shop now",
+        "limited time", "don't miss", "t&c", "t&cs",
     )
 
     /** Default bank / wallet / card app packages worth listening to. Extended by user settings. */

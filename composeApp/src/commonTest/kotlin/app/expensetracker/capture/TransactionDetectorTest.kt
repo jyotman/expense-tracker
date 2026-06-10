@@ -100,6 +100,54 @@ class TransactionDetectorTest {
     }
 
     @Test
+    fun marketing_push_with_percent_bonus_is_not_a_spend() {
+        // Real-world false positive: an airline-miles promo from a monitored bank app was captured
+        // as "Add expense S$25" — the 25 came from "25% bonus" and the 10/19 from "10-19 Jun";
+        // nothing in the text is a payment.
+        val promo = "25% bonus miles on AirFrance-KLM — Transfer Max Miles to Flying Blue with a " +
+            "25% bonus, 10-19 Jun. More miles for Air France, KLM or Transavia flights. Discover more."
+        assertFalse(TransactionDetector.isLikelySpend(promo))
+        assertNull(TransactionDetector.extractAmountMinor(promo))
+    }
+
+    @Test
+    fun percentages_dates_and_times_are_not_amounts() {
+        assertNull(TransactionDetector.extractAmountMinor("Get 20% off all purchases"))
+        assertNull(TransactionDetector.extractAmountMinor("Sale runs 10-19 Jun"))
+        assertNull(TransactionDetector.extractAmountMinor("Transfer completed at 16:46"))
+        // The same digits as a real amount still extract.
+        assertEquals(2000L, TransactionDetector.extractAmountMinor("You spent $20 at Zara"))
+    }
+
+    @Test
+    fun promo_numbers_without_currency_marker_are_not_spends() {
+        assertFalse(TransactionDetector.isLikelySpend("Earn 500 bonus miles with every purchase"))
+        // An advertised discount is not a payment, even with a currency symbol.
+        assertFalse(TransactionDetector.isLikelySpend("Get S\$20 off your next purchase at Zara"))
+        // But a currency-tagged amount wins even when a rewards footer is present.
+        val withFooter = "You spent S\$45.20 at STARBUCKS and earned 50 points"
+        assertTrue(TransactionDetector.isLikelySpend(withFooter))
+        assertEquals(4520L, TransactionDetector.extractAmountMinor(withFooter))
+    }
+
+    @Test
+    fun keywords_respect_word_boundaries() {
+        // "sent" must not fire inside "consent".
+        assertFalse(TransactionDetector.isLikelySpend("Please give your consent to proceed with ref 12345"))
+        assertTrue(TransactionDetector.isLikelySpend("Sent \$12 to Alex"))
+        // "recharge" is a spend in its own right (no longer a substring hit on "charge").
+        assertTrue(TransactionDetector.isLikelySpend("Recharge of ₹299 successful"))
+    }
+
+    @Test
+    fun own_funds_transfer_passes_the_spend_gate() {
+        // A real DBS transfer alert: "transfer" must be a spend keyword or this is never captured.
+        val dbs = "An Own Funds Transfer of SGD15000.00 from A/C ending 7328 to A/C ending 7596 " +
+            "on 09 Jun 16:46 (SGT) was completed. If unauthorised, call +65 63272265."
+        assertTrue(TransactionDetector.isLikelySpend(dbs))
+    }
+
+    @Test
     fun guesses_merchant() {
         assertEquals("STARBUCKS", TransactionDetector.guessMerchant("You spent \$5 at STARBUCKS on Monday"))
         assertEquals("John", TransactionDetector.guessMerchant("Payment sent to John for lunch"))

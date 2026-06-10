@@ -39,17 +39,27 @@ object TransactionDetector {
         }
     }
 
-    fun isIncome(text: String): Boolean {
-        val lower = text.lowercase()
-        return CaptureRules.incomeKeywords.any { lower.contains(it) }
-    }
+    // Keyword matchers use word boundaries so "sent" can't fire inside "consent", "charge" inside
+    // "recharge", or "paid" inside "prepaid". Inflections are data in CaptureRules, not regex tricks.
+    private fun keywordRegex(words: List<String>): Regex =
+        Regex("""\b(?:${alternation(words)})\b""", RegexOption.IGNORE_CASE)
+
+    private val spendRegex = keywordRegex(CaptureRules.spendKeywords)
+    private val incomeRegex = keywordRegex(CaptureRules.incomeKeywords)
+    private val promoRegex = keywordRegex(CaptureRules.promoKeywords)
+
+    fun isIncome(text: String): Boolean = incomeRegex.containsMatchIn(text)
 
     /** True if the text looks like an outgoing payment with an amount. */
     fun isLikelySpend(text: String): Boolean {
         if (text.isBlank()) return false
         if (isIncome(text)) return false
-        val hasKeyword = CaptureRules.spendKeywords.any { text.lowercase().contains(it) }
-        return hasKeyword && extractAmountMinor(text) != null
+        if (!spendRegex.containsMatchIn(text)) return false
+        if (extractAmountMinor(text) == null) return false
+        // Promotional copy pairs marketing numbers with transactional words ("...on every
+        // purchase"). In that context only a currency-tagged amount is strong enough evidence
+        // of a real payment; a bare number is promo math.
+        return !(promoRegex.containsMatchIn(text) && extractCurrencyToken(text) == null)
     }
 
     /**
@@ -73,11 +83,31 @@ object TransactionDetector {
     }
 
     private fun bestMatch(text: String): MatchResult? {
-        val matches = amountRegex.findAll(text).toList()
+        val matches = amountRegex.findAll(text).filter { plausibleAmount(text, it) }.toList()
         if (matches.isEmpty()) return null
         val tagged = matches.firstOrNull { it.groups["sym"] != null || it.groups["sym2"] != null }
         val withDecimal = matches.firstOrNull { it.groups["num"]?.value?.let { n -> n.contains('.') || n.contains(',') } == true }
         return tagged ?: withDecimal ?: matches.first()
+    }
+
+    /**
+     * Rejects number matches that can't be transaction amounts: percentages ("25% bonus"),
+     * discount constructions ("20 off"), date ranges and times ("10-19 Jun", "16:46"), and digit
+     * runs glued into a larger token ("ref7829341", "A4").
+     */
+    private fun plausibleAmount(text: String, m: MatchResult): Boolean {
+        val before = text.getOrNull(m.range.first - 1)
+        val after = text.getOrNull(m.range.last + 1)
+        // Glued into a larger token on either side.
+        if (before?.isLetterOrDigit() == true || after?.isLetter() == true) return false
+        // Date range, date, or time: a digit joined to this number through '-', '/' or ':'.
+        if (after != null && after in "-/:" && text.getOrNull(m.range.last + 2)?.isDigit() == true) return false
+        if (before != null && before in "-/:" && text.getOrNull(m.range.first - 2)?.isDigit() == true) return false
+        val tail = text.substring(m.range.last + 1).trimStart()
+        if (tail.startsWith('%')) return false // a rate, not money
+        // "20 off" / "S$20 off": a discount being advertised, not a payment that happened.
+        if (tail.startsWith("off", ignoreCase = true) && tail.getOrNull(3)?.isLetter() != true) return false
+        return true
     }
 
     /** A rough merchant guess: text after "at"/"to" up to a delimiter. */
