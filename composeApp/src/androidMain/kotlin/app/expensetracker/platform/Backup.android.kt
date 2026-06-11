@@ -9,7 +9,7 @@ import kotlinx.coroutines.CompletableDeferred
 /** Android backup via the Storage Access Framework — the user picks the destination/source file. */
 actual object Backup {
     actual val supported: Boolean = true
-    actual val autoBackupProviderName: String = "Google One"
+    actual val autoBackupProviderName: String = "Google"
     actual val canOpenAutoBackupSettings: Boolean = true
 
     actual suspend fun export(payload: String, suggestedName: String): Result<String> = runCatching {
