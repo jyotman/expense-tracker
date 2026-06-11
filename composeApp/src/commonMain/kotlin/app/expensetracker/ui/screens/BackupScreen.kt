@@ -94,12 +94,11 @@ fun BackupScreen(onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Your expenses are backed up to your ${state.autoBackupProviderName} account whenever " +
-                            "your phone is charging. A fresh install or new phone restores your data " +
+                        "Your expenses are backed up to your ${state.autoBackupProviderName} account automatically." +
+                            "A fresh install or new phone restores your data " +
                             "automatically — nothing to do on your end.\n\n" +
                             "To confirm backup is on, look for the backup setting under your " +
-                            "${state.autoBackupProviderName} account in your phone's Settings. " +
-                            "Data is only excluded if you've explicitly turned it off there.",
+                            "${state.autoBackupProviderName} account in your phone's Settings. ",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -115,7 +114,8 @@ fun BackupScreen(onBack: () -> Unit) {
             )
             Text(
                 "Save a personal copy of your data anywhere on your device for extra peace of mind, " +
-                    "or to browse through it yourself. You can restore from it anytime by importing it back.",
+                    "or to browse through it yourself. You can restore from it anytime by importing it back.\n\n" +
+                    "Note: importing replaces all your existing expenses, categories, and recurring rules.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
