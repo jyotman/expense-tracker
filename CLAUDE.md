@@ -13,9 +13,9 @@ Key libraries (see `gradle/libs.versions.toml` for versions):
 - **Prefs:** `multiplatform-settings` (`SettingsStorage`)
 - **On-device AI:** Gemini Nano via the **ML Kit GenAI Prompt API** (`com.google.mlkit:genai-prompt`, foreground-only), with a regex rules fallback. (Replaced the experimental `com.google.ai.edge.aicore` SDK, which was unreachable on stock devices.)
 - **Widget:** Jetpack Glance
-- **FX rates:** `frankfurter.dev` (keyless ECB data) via **Ktor**, cached once/day on-device (`FxRateCache`) — powers the multi-currency save-time conversion suggestion; the only outbound network call in the app
+- **FX rates:** `frankfurter.dev` (keyless ECB data) via **Ktor**, cached once/day on-device (`FxRateCache`) — powers the multi-currency save-time conversion suggestion. This and crash diagnostics are the app's only two outbound network calls; neither carries financial data or notification content
+- **Crash reporting:** Firebase **Crashlytics** (release builds only; anonymous diagnostics, no expenses/notification content). Staged so it stays inert until a `google-services.json` is added — the Firebase Gradle plugins are applied *conditionally* on that file's presence (`androidApp/build.gradle.kts`), so the repo builds without it. See `RELEASE_TODO.md`
 - **Backup:** Storage Access Framework export/import (JSON) + OS auto-backup — no server, no cloud SDK
-- **Build config:** BuildKonfig.
 
 ## Project layout
 
@@ -83,7 +83,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 3. Regenerate the snapshot: `./gradlew :composeApp:generateCommonMainExpenseTrackerDatabaseSchema` (writes the new `<N+1>.db`); commit it.
 4. `./gradlew :composeApp:testAndroidHostTest` (or `:composeApp:verifyCommonMainExpenseTrackerDatabaseMigration`) must pass.
 
-**On-device only.** Notification parsing and AI run entirely on-device; nothing is sent to a server. Backup writes a user-controlled file — never auto-upload to a remote endpoint.
+**On-device first.** Notification parsing and AI run entirely on-device; expenses and notification content never leave the device. The only outbound calls are the daily FX-rate fetch and anonymous crash diagnostics (Crashlytics, release only) — neither carries financial data or notification content. Release builds gate Kermit to `Severity.Info` (`AppInitializer.android.kt`) so app internals never reach logcat in production. Backup writes a user-controlled file — never auto-upload to a remote endpoint.
 
 **Notification capture keyword tiers.** `isLikelySpend` uses three tiers in `CaptureRules`: `blockPhrases` (hard reject — OTPs, declined, bill-due reminders) → `strongSpendKeywords` (win even with income words present) → `weakSpendKeywords` (lose to `strongIncomeKeywords`). All keyword matching is word-boundary aware, so inflections are listed explicitly (e.g. `"charge"` does not cover `"charges"`). Both `"transfer"` and `"transferred"` are weak spend signals: because capture is review-to-confirm (a false positive is one inbox dismiss, a miss is an untracked spend), recall beats precision, so a bare "X transferred to your account" is captured even though it may be incoming — a genuine credit ("salary … transferred") is still suppressed by the strong-income tier. `"cashback"` is intentionally absent from income keywords — banks append it to payment confirmations. Two further layers reject promo false-positives: `promoKeywords` (when marketing copy is present, only a *currency-tagged* amount counts as a spend — a bare number is promo math like "500 bonus miles") and `plausibleAmount` in `TransactionDetector` (percentages, advertised "20 off" discounts, date ranges/times, and digits glued into larger tokens are never amounts). Extend `CaptureRules` when a bank's format is missed; verify with `TransactionDetectorTest`.
 

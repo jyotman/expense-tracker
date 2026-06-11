@@ -1,5 +1,3 @@
-import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.BOOLEAN
-import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -7,7 +5,6 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.buildkonfig)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.sqldelight)
 }
@@ -112,16 +109,4 @@ sqldelight {
 // host unit tests (the day-to-day command in CLAUDE.md) so schema drift is caught locally, not just CI.
 tasks.matching { it.name == "testAndroidHostTest" }.configureEach {
     dependsOn("verifyCommonMainExpenseTrackerDatabaseMigration")
-}
-
-buildkonfig {
-    packageName = "app.expensetracker"
-
-    defaultConfigs {
-        buildConfigField(BOOLEAN, "IS_RELEASE", "false")
-    }
-
-    defaultConfigs("prod") {
-        buildConfigField(BOOLEAN, "IS_RELEASE", "true")
-    }
 }

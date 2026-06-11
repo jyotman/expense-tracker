@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy auto-backup rules for Android 11 and below (android:fullBackupContent).
+  No <include>/<exclude> entries means "back up all app data" (the default), which covers the
+  SQLite database and preferences. Declared explicitly to document the intended OS auto-backup
+  behavior. Android 12+ uses data_extraction_rules.xml instead.
+-->
+<full-backup-content>
+</full-backup-content>

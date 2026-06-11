@@ -1,6 +1,7 @@
 package app.expensetracker
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import app.expensetracker.db.Database
 import app.expensetracker.db.androidSqlDriver
 import app.expensetracker.storage.SettingsStorage
@@ -18,6 +19,8 @@ object AppInitializer {
         if (initialized) return
         synchronized(this) {
             if (initialized) return
+            val debuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            configureLogging(isDebugBuild = debuggable)
             AppContext.init(context)
             val prefs = context.applicationContext.getSharedPreferences("expensetracker_prefs", Context.MODE_PRIVATE)
             SettingsStorage.init { SharedPreferencesSettings(prefs) }

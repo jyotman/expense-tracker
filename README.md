@@ -1,6 +1,6 @@
 # Expense Tracker
 
-A minimal, local-first **spending** tracker — spends only, no income. Everything lives on-device and the whole dataset backs up to a file the user controls; there is no app server. Built with Kotlin Multiplatform + Compose Multiplatform, Android-first.
+A minimal, local-first **spending** tracker — spends only, no income. Your financial data lives on-device and the whole dataset backs up to a file the user controls; there is no app server. The only data that ever leaves the device is a keyless daily exchange-rate lookup and anonymous crash diagnostics — see [PRIVACY.md](PRIVACY.md). Built with Kotlin Multiplatform + Compose Multiplatform, Android-first.
 
 The premise: tracking where your money goes is most useful when it's effortless. So beyond fast manual entry, on Android the app reads the payment notifications your bank, wallet and card apps already post, detects the spend on-device, and hands you a prefilled, categorized expense to confirm — nothing leaves the phone, and nothing is saved without you.
 
@@ -16,7 +16,7 @@ The premise: tracking where your money goes is most useful when it's effortless.
 8. **Multi-currency** — pick a home currency (ISO 4217); every amount is stored and shown in it. When an auto-captured payment is in another currency, the app detects that on-device and offers a one-tap converted amount at save time (daily exchange rates), recording the original in the note. The conversion is a suggestion, never forced. See the deep-dive below.
 9. **Widget** — a home-screen widget shows the current month's spend and a one-tap "add expense" (Jetpack Glance).
 10. **Backup & restore** — export/import the full dataset as a JSON file via the system picker (save to Drive/Dropbox/local); OS auto-backup is the automatic safety net.
-11. **On-device, no server** — all data and all parsing stay on the phone (the one outbound call is a keyless, daily exchange-rate fetch — no personal data sent).
+11. **On-device, no app server** — your expenses, categories and all notification parsing stay on the phone. The app makes only two outbound calls, neither carrying financial data or notification content: a keyless daily exchange-rate fetch, and anonymous crash diagnostics (Crashlytics, release builds only). See [PRIVACY.md](PRIVACY.md).
 
 ## Project structure
 
@@ -38,13 +38,29 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 ./gradlew :androidApp:assembleDebug
 ```
 
-Android release (unsigned)
+Android release (R8 minified + resource-shrunk; **debug-signed** for local install/testing)
 ```bash
 ./gradlew :androidApp:assembleRelease
 ```
 
 iOS
 ```Generate the iosApp Xcode project, then run from Xcode. The shared framework links via :composeApp:linkDebugFrameworkIosSimulatorArm64.```
+
+### Release build & signing (Play Store)
+
+The release buildType has `isMinifyEnabled` + `isShrinkResources` on, with keep rules in
+`androidApp/proguard-rules.pro`. After changing dependencies or adding reflection/serialization,
+smoke-test a release build end-to-end (save an expense, capture flow, **backup export + import**,
+FX suggestion, charts) — R8 failures surface at runtime, not compile time.
+
+`assembleRelease` signs with the **debug** key, so its APK is for local R8 testing only and
+**must not** be uploaded. The Play upload **App Bundle** is signed via IntelliJ → Build →
+Generate Signed App Bundle / APK using the upload keystore (Play App Signing re-signs per app).
+
+**Crash reporting (Crashlytics) is staged but inert** until a Firebase `google-services.json` is
+dropped into `androidApp/` — the Gradle build applies the Firebase plugins only when that file
+exists, so the repo builds normally without it. The full release runbook (Firebase, Play Console
+data-safety, signing, store assets) lives in [RELEASE_TODO.md](RELEASE_TODO.md).
 
 ## Documentation: Auto-capture
 
