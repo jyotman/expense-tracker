@@ -8,9 +8,18 @@ package app.expensetracker.platform
 expect object Backup {
     val supported: Boolean
 
+    /** Human-readable name of the OS automatic backup service ("Google One", "iCloud", …). */
+    val autoBackupProviderName: String
+
+    /** Whether the platform can deep-link directly to the OS backup settings screen. */
+    val canOpenAutoBackupSettings: Boolean
+
     /** Let the user choose where to save [payload]. Returns the chosen file's display name. */
     suspend fun export(payload: String, suggestedName: String): Result<String>
 
     /** Let the user pick a previously exported file and return its contents. */
     suspend fun import(): Result<String>
+
+    /** Open the OS backup settings screen. No-op if [canOpenAutoBackupSettings] is false. */
+    fun openAutoBackupSettings()
 }

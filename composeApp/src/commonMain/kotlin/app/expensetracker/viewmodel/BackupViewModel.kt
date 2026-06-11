@@ -19,6 +19,8 @@ import kotlin.time.Instant
 
 data class BackupUiState(
     val supported: Boolean = false,
+    val autoBackupProviderName: String = Backup.autoBackupProviderName,
+    val canOpenAutoBackupSettings: Boolean = Backup.canOpenAutoBackupSettings,
     val lastBackupMillis: Long = 0,
     val busy: Boolean = false,
     val message: String? = null,
@@ -48,6 +50,8 @@ class BackupViewModel : ViewModel() {
                 .onFailure { fail(it, "Export failed") }
         }
     }
+
+    fun openAutoBackupSettings() = Backup.openAutoBackupSettings()
 
     fun importNow() {
         if (_state.value.busy) return

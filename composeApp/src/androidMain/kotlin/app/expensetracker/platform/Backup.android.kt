@@ -2,12 +2,15 @@ package app.expensetracker.platform
 
 import android.app.Activity
 import android.content.Intent
+import android.provider.Settings
 import app.expensetracker.CurrentActivity
 import kotlinx.coroutines.CompletableDeferred
 
 /** Android backup via the Storage Access Framework — the user picks the destination/source file. */
 actual object Backup {
     actual val supported: Boolean = true
+    actual val autoBackupProviderName: String = "Google One"
+    actual val canOpenAutoBackupSettings: Boolean = true
 
     actual suspend fun export(payload: String, suggestedName: String): Result<String> = runCatching {
         val activity = CurrentActivity.get() ?: error("App not in foreground")
@@ -31,6 +34,17 @@ actual object Backup {
         val uri = data.data ?: error("No file chosen")
         activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
             ?: error("Couldn't read file")
+    }
+
+    actual fun openAutoBackupSettings() {
+        val activity = CurrentActivity.get() ?: return
+        // Try the backup & reset settings screen; fall back to the top-level Settings if the
+        // intent isn't handled (some OEM skins move backup to a different location).
+        runCatching {
+            activity.startActivity(Intent("android.settings.BACKUP_AND_RESET_SETTINGS"))
+        }.onFailure {
+            runCatching { activity.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        }
     }
 }
 
